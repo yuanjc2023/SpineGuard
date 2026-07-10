@@ -1,0 +1,23 @@
+menu "SpineGuard"
+
+config SPINEGUARD_WIFI_SSID
+    string "Wi-Fi SSID"
+    default ""
+
+config SPINEGUARD_WIFI_PASSWORD
+    string "Wi-Fi password"
+    default ""
+
+config SPINEGUARD_BACKEND_URL
+    string "Telemetry API URL"
+    default "http://192.168.1.100:8000/api/v1/device/telemetry"
+
+config SPINEGUARD_DEVICE_TOKEN
+    string "Device token"
+    default "dev-token"
+
+config SPINEGUARD_DEVICE_ID
+    string "Device ID"
+    default "SG-0001"
+
+endmenu

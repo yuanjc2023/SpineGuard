@@ -1,0 +1,5 @@
+timestamp_ms,left_raw,right_raw,label,person_id,trial_id
+0,4095,4095,empty,P001,01
+100,1250,1320,normal,P001,01
+200,420,2100,left_lean,P001,01
+300,2200,390,right_lean,P001,01

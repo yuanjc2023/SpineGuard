@@ -1,0 +1,8 @@
+:root{font-family:"Microsoft YaHei",sans-serif;background:#f4f7fa;color:#17212b}
+body{margin:0}main{max-width:1100px;margin:auto;padding:32px}.sub{color:#687684}
+section,.hero{background:white;border:1px solid #dfe7ee;border-radius:16px;padding:22px;margin:20px 0}
+.hero{display:grid;grid-template-columns:2fr repeat(3,1fr);gap:18px}.hero div{display:grid;gap:8px}
+.hero span,.card span{color:#687684}.hero strong{font-size:32px}.hero b{font-size:20px}
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}.card{border:1px solid #e2e8f0;border-radius:12px;padding:16px;display:grid;gap:8px}.card strong{font-size:28px}
+.error{background:#fee2e2;color:#991b1b;padding:12px;border-radius:10px}
+@media(max-width:700px){.hero,.grid{grid-template-columns:1fr 1fr}}

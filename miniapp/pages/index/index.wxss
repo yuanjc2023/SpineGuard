@@ -1,0 +1,1 @@
+page{background:#f4f7fa}.page{padding:28rpx}.card{background:#fff;border-radius:24rpx;padding:28rpx;margin-bottom:24rpx}.posture{display:block;font-size:56rpx;font-weight:700;margin:18rpx 0}.row{display:flex;justify-content:space-between;padding:16rpx;margin-top:12rpx;background:#f4f7fa;border-radius:12rpx}

@@ -1,0 +1,10 @@
+<view class="page">
+  <view class="card"><text>当前坐姿</text><text class="posture">{{posture}}</text><text>置信度{{confidence}}%</text></view>
+  <view class="card">
+    <text>5点压力</text>
+    <view wx:for="{{['left','right','front','back','center']}}" wx:key="*this" class="row">
+      <text>{{item}}</text><text>{{pressure[item]}}</text>
+    </view>
+  </view>
+  <view class="card">连接状态：{{connected?"正常":"断开"}}</view>
+</view>

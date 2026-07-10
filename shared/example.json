@@ -1,0 +1,23 @@
+{
+  "protocol_version": 1,
+  "device_id": "SG-0001",
+  "session_id": "S-MOCK-001",
+  "seq": 1,
+  "timestamp_ms": 1783660800000,
+  "posture": "normal",
+  "confidence": 0.96,
+  "pressure": {
+    "left": 520,
+    "right": 510,
+    "front": 430,
+    "back": 620,
+    "center": 760
+  },
+  "posture_duration_s": 12,
+  "sitting_duration_s": 600,
+  "vibration_enabled": true,
+  "warning_active": false,
+  "recognition_source": "mock",
+  "model_version": "mock-v0.1",
+  "firmware_version": "0.1.0"
+}
