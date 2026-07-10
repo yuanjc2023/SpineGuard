@@ -1,5 +1,5 @@
-import React, {useEffect, useState} from "react";
-import ReactDOM from "react-dom/client";
+import {useEffect, useState} from "react";
+import {createRoot} from "react-dom/client";
 import "./style.css";
 
 type Frame = {
@@ -42,4 +42,4 @@ function App(){
     </section>
   </main>
 }
-ReactDOM.createRoot(document.getElementById("root")!).render(<App/>);
+createRoot(document.getElementById("root")!).render(<App/>);
