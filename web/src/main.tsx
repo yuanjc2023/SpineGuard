@@ -4,7 +4,13 @@ import "./style.css";
 
 type Frame = {
   posture:string; confidence:number; pressure:Record<string,number>;
+  pressure_features:{
+    total_pressure:number; left_right_diff:number; front_back_diff:number;
+    center_x:number; center_y:number; asymmetry_index:number;
+  };
+  imu:{tilt_x:number; tilt_y:number; shake_level:number};
   sitting_duration_s:number; recognition_source:string; warning_active:boolean;
+  reminder_count:number; battery_level:number;
 };
 
 const API = "http://127.0.0.1:8000/api/v1";

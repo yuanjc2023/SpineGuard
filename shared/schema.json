@@ -12,10 +12,14 @@
     "posture",
     "confidence",
     "pressure",
+    "pressure_features",
+    "imu",
     "posture_duration_s",
     "sitting_duration_s",
     "vibration_enabled",
     "warning_active",
+    "reminder_count",
+    "battery_level",
     "recognition_source",
     "model_version",
     "firmware_version"
@@ -63,6 +67,7 @@
         "back",
         "center"
       ],
+      "additionalProperties": false,
       "properties": {
         "left": {
           "type": "integer",
@@ -91,6 +96,76 @@
         }
       }
     },
+    "pressure_features": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_pressure",
+        "left_right_diff",
+        "front_back_diff",
+        "center_x",
+        "center_y",
+        "asymmetry_index"
+      ],
+      "properties": {
+        "total_pressure": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5000
+        },
+        "left_right_diff": {
+          "type": "integer",
+          "minimum": -1000,
+          "maximum": 1000
+        },
+        "front_back_diff": {
+          "type": "integer",
+          "minimum": -1000,
+          "maximum": 1000
+        },
+        "center_x": {
+          "type": "number",
+          "minimum": -1,
+          "maximum": 1
+        },
+        "center_y": {
+          "type": "number",
+          "minimum": -1,
+          "maximum": 1
+        },
+        "asymmetry_index": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "imu": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tilt_x",
+        "tilt_y",
+        "shake_level"
+      ],
+      "properties": {
+        "tilt_x": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        },
+        "tilt_y": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        },
+        "shake_level": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
     "posture_duration_s": {
       "type": "integer",
       "minimum": 0
@@ -104,6 +179,15 @@
     },
     "warning_active": {
       "type": "boolean"
+    },
+    "reminder_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "battery_level": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
     },
     "recognition_source": {
       "enum": [

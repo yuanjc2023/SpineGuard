@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "esp_adc/adc_oneshot.h"
@@ -184,13 +185,34 @@ void app_main(void)
 
     unsigned long seq = 0;
     unsigned upload_ticks = 0;
-    char json[768];
+    char json[1280];
 
     while (1) {
         int left_raw = read_avg(adc, ADC_CHANNEL_3);
         int right_raw = read_avg(adc, ADC_CHANNEL_4);
         int left = (4095 - left_raw) * 1000 / 4095;
         int right = (4095 - right_raw) * 1000 / 4095;
+        int front = 0;
+        int back = 0;
+        int center = 0;
+        int total_pressure = left + right + front + back + center;
+        int left_right_diff = left - right;
+        int front_back_diff = front - back;
+        double center_x = 0.0;
+        double center_y = 0.0;
+        double asymmetry_index = 0.0;
+
+        if (left + right > 0) {
+            center_x = (double)left_right_diff / (double)(left + right);
+        }
+        if (front + back > 0) {
+            center_y = (double)front_back_diff / (double)(front + back);
+        }
+        if (total_pressure > 0) {
+            asymmetry_index =
+                (double)(abs(left_right_diff) + abs(front_back_diff)) /
+                (double)total_pressure;
+        }
 
         const char *posture = "normal";
         if (left + right < 80) {
@@ -219,14 +241,29 @@ void app_main(void)
             "\"pressure\":{"
                 "\"left\":%d,"
                 "\"right\":%d,"
-                "\"front\":0,"
-                "\"back\":0,"
-                "\"center\":0"
+                "\"front\":%d,"
+                "\"back\":%d,"
+                "\"center\":%d"
+            "},"
+            "\"pressure_features\":{"
+                "\"total_pressure\":%d,"
+                "\"left_right_diff\":%d,"
+                "\"front_back_diff\":%d,"
+                "\"center_x\":%.2f,"
+                "\"center_y\":%.2f,"
+                "\"asymmetry_index\":%.2f"
+            "},"
+            "\"imu\":{"
+                "\"tilt_x\":0.0,"
+                "\"tilt_y\":0.0,"
+                "\"shake_level\":0.0"
             "},"
             "\"posture_duration_s\":0,"
             "\"sitting_duration_s\":0,"
             "\"vibration_enabled\":true,"
             "\"warning_active\":%s,"
+            "\"reminder_count\":0,"
+            "\"battery_level\":100,"
             "\"recognition_source\":\"rule\","
             "\"model_version\":\"rule-v0.1\","
             "\"firmware_version\":\"0.1.0\""
@@ -237,6 +274,15 @@ void app_main(void)
             posture,
             left,
             right,
+            front,
+            back,
+            center,
+            total_pressure,
+            left_right_diff,
+            front_back_diff,
+            center_x,
+            center_y,
+            asymmetry_index,
             warning ? "true" : "false"
         );
 
