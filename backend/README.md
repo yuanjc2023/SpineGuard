@@ -344,10 +344,13 @@ GET /api/v1/admin/overview
 GET /api/v1/admin/classes
 GET /api/v1/admin/classes/{class_id}/students
 GET /api/v1/admin/risk-students?risk_level=red
+GET /api/v1/admin/risk-students/export?risk_level=red&from=&to=
 GET /api/v1/admin/export?from=&to=&format=csv
 ```
 
 当前管理员统计接口需要 `school_admin` 或 `admin`，高风险学生列表还允许 `doctor` 查看。总览返回学生数、设备数、在线设备数、平均标准坐姿率、高风险提示人数和班级摘要。导出支持 `format=csv` 和 `format=xlsx`，只导出匿名坐姿记录，不包含设备 Token、学生姓名、手机号或真实班级信息。
+
+风险学生记录导出接口返回 zip 文件。zip 解压后，每个文件是一个学生的 Excel 表格，文件名为 `{student_id}_{download_timestamp}.xlsx`，表格中只包含该学生的非正常坐姿记录。
 
 ### 小程序通知接口
 

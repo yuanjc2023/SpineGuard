@@ -413,6 +413,22 @@ def test_admin_risk_students_and_notifications():
         assert risk_students.status_code == 200
         assert risk_students.json()["items"][0]["student_id"] == "STU-NOTIFY-001"
 
+        risk_export = client.get(
+            "/api/v1/admin/risk-students/export?risk_level=red&from=2026-07-11&to=2026-07-11",
+            headers=admin_headers,
+        )
+        assert risk_export.status_code == 200
+        assert risk_export.headers["content-type"] == "application/zip"
+        with ZipFile(BytesIO(risk_export.content)) as archive:
+            names = archive.namelist()
+            assert len(names) == 1
+            assert names[0].startswith("STU-NOTIFY-001_")
+            assert names[0].endswith(".xlsx")
+            with ZipFile(BytesIO(archive.read(names[0]))) as workbook:
+                sheet = workbook.read("xl/worksheets/sheet1.xml").decode("utf-8")
+                assert "left_lean" in sheet
+                assert "normal" not in sheet
+
         created = client.post(
             "/api/v1/notifications",
             headers=admin_headers,

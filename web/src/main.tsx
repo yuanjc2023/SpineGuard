@@ -372,6 +372,7 @@ function App(){
           <button onClick={()=>loadAdmin().catch(err)}>总览/班级/风险学生</button>
           <button onClick={()=>download(`/admin/export?from=${today}&to=${today}&format=csv`, "spineguard.csv").catch(err)}>导出 CSV</button>
           <button onClick={()=>download(`/admin/export?from=${today}&to=${today}&format=xlsx`, "spineguard.xlsx").catch(err)}>导出 Excel</button>
+          <button onClick={()=>download(`/admin/risk-students/export?risk_level=red&from=${today}&to=${today}`, "risk-students.zip").catch(err)}>风险学生 ZIP</button>
         </Actions>
         <div className="summary">
           <Metric label="学生数" value={overview?.student_count ?? "--"}/>

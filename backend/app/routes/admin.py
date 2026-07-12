@@ -1,6 +1,6 @@
 import csv
 from datetime import datetime, timezone
-from io import StringIO
+from io import BytesIO, StringIO
 from zipfile import ZIP_DEFLATED, ZipFile
 from xml.sax.saxutils import escape
 
@@ -155,6 +155,45 @@ def risk_students(
     return {"ok": True, "items": items, "total": len(items)}
 
 
+@router.get("/risk-students/export")
+def export_risk_student_records(
+    risk_level: str = Query("red"),
+    from_value: str | None = Query(default=None, alias="from"),
+    to_value: str | None = Query(default=None, alias="to"),
+    _: User = Depends(require_roles("school_admin", "admin", "doctor")),
+    db: Session = Depends(get_db),
+):
+    if risk_level not in ("green", "yellow", "red", "all"):
+        raise HTTPException(status_code=400, detail="risk_level must be green, yellow, red, or all")
+
+    try:
+        start_ms = parse_time_filter(from_value, end_of_day=False)
+        end_ms = parse_time_filter(to_value, end_of_day=True)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    student_ids = risk_student_ids(risk_level, db)
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    buffer = BytesIO()
+    with ZipFile(buffer, "w", ZIP_DEFLATED) as zip_file:
+        for student_id in sorted(student_ids):
+            records = abnormal_records_for_student(student_id, start_ms, end_ms, db)
+            if not records:
+                continue
+            rows = [record_export_row(record) for record in records]
+            safe_student_id = safe_filename_part(student_id)
+            zip_file.writestr(
+                f"{safe_student_id}_{timestamp}.xlsx",
+                build_xlsx(export_fieldnames(), rows),
+            )
+
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="risk-students-{timestamp}.zip"'},
+    )
+
+
 @router.get("/export")
 def export_records(
     from_value: str | None = Query(default=None, alias="from"),
@@ -218,6 +257,37 @@ def latest_risk_by_student(db: Session) -> dict[str, RiskAssessment]:
     for assessment in assessments:
         risks[assessment.student_id] = assessment
     return risks
+
+
+def risk_student_ids(risk_level: str, db: Session) -> set[str]:
+    latest_risks = latest_risk_by_student(db)
+    return {
+        student_id
+        for student_id, risk in latest_risks.items()
+        if risk_level == "all" or risk.risk_level == risk_level
+    }
+
+
+def abnormal_records_for_student(
+    student_id: str,
+    start_ms: int | None,
+    end_ms: int | None,
+    db: Session,
+) -> list[PostureRecord]:
+    stmt = select(PostureRecord).where(
+        PostureRecord.student_id == student_id,
+        PostureRecord.posture != "normal",
+        PostureRecord.posture != "empty",
+    )
+    if start_ms is not None:
+        stmt = stmt.where(PostureRecord.timestamp_ms >= start_ms)
+    if end_ms is not None:
+        stmt = stmt.where(PostureRecord.timestamp_ms <= end_ms)
+    return list(db.scalars(stmt.order_by(PostureRecord.timestamp_ms, PostureRecord.id)))
+
+
+def safe_filename_part(value: str) -> str:
+    return "".join(char if char.isalnum() or char in ("-", "_") else "_" for char in value)[:80]
 
 
 def devices_for_students(student_ids: set[str], devices: list[Device], db: Session) -> list[Device]:
@@ -306,8 +376,6 @@ def record_export_row(record: PostureRecord) -> dict:
 
 
 def build_xlsx(headers: list[str], rows: list[dict]) -> bytes:
-    from io import BytesIO
-
     buffer = BytesIO()
     now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     with ZipFile(buffer, "w", ZIP_DEFLATED) as xlsx:

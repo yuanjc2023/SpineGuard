@@ -435,6 +435,24 @@ all
 
 默认查询 `red`。
 
+### `GET /api/v1/admin/risk-students/export?risk_level=red&from=&to=`
+
+下载风险学生非正常坐姿记录压缩包。需要 `school_admin`、`admin` 或 `doctor`。
+
+返回 `application/zip`。zip 解压后，每个文件为一个学生的 Excel 表格，文件名格式：
+
+```text
+{student_id}_{download_timestamp}.xlsx
+```
+
+每个表格只包含该学生的非正常坐姿记录，即排除 `normal` 和 `empty`，包含 `left_lean`、`right_lean`、`front_lean`、`back_lean`、`unknown` 等记录。
+
+参数说明：
+
+- `risk_level` 可选 `green`、`yellow`、`red`、`all`，默认 `red`
+- `from/to` 可选，规则同历史接口
+- 导出内容不包含设备 Token、用户手机号、学生姓名或真实班级信息
+
 ## 小程序通知接口
 
 ### `GET /api/v1/notifications?unread_only=false`
