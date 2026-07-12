@@ -1,6 +1,6 @@
 # SpineGuard 后端说明
 
-本目录是 SpineGuard 的 FastAPI 后端。当前阶段已经完成基础目录拆分、SQLite/SQLAlchemy 接入、设备遥测落库和历史查询；账号登录、设备绑定、统计、风险提示和报告接口还在后续阶段实现。
+本目录是 SpineGuard 的 FastAPI 后端。当前阶段已经完成基础目录拆分、SQLite/SQLAlchemy 接入、账号认证、学生/设备/绑定接口、设备遥测落库、历史查询、基于会话时间片的每日/每周统计、坐姿行为风险提示、真实 LLM 报告接口、学生维度 WebSocket、管理员统计、CSV/Excel 导出和小程序通知接口。
 
 ## 当前能力
 
@@ -9,7 +9,19 @@
 - 使用设备 Token 保护设备上传接口。
 - 将设备上传数据写入 `posture_records`。
 - 提供设备最新数据和历史数据查询。
-- 保留 WebSocket 推送入口。
+- 提供账号注册、登录和当前用户查询。
+- 提供学生创建/查询、设备创建/查询和设备绑定。
+- 兼容原接口契约中的 `GET /api/v1/me`。
+- 设备上传时会按当前有效绑定写入 `student_id`。
+- 提供按学生查询最新坐姿和历史坐姿接口。
+- 历史查询支持 `from`、`to`、`limit`。
+- 提供按学生和日期计算每日统计、每周统计接口，统计口径基于 `session_id` 和相邻遥测时间片估算。
+- 提供坐姿行为风险提示接口。
+- 提供规则报告和真实 LLM 智能报告接口，LLM 不可用时自动兜底为规则报告。
+- 设备上传时自动更新设备在线状态、电量、固件版本和模型版本。
+- 提供设备维度和学生维度 WebSocket 推送入口。
+- 提供管理员总览、班级统计、高风险学生列表和匿名坐姿记录 CSV/Excel 导出。
+- 提供小程序通知列表、通知创建和标记已读接口。
 - 启动时自动创建数据库表。
 - 提供独立测试数据库，避免 pytest 清空正式开发数据库。
 
@@ -19,15 +31,24 @@
 backend/
 ├─ app/
 │  ├─ main.py                 FastAPI 应用入口
-│  ├─ config.py               API 前缀、版本、Token、数据库路径
+│  ├─ config.py               API 前缀、版本、Token、.env、数据库路径
 │  ├─ db.py                   SQLAlchemy engine/session/init_db
 │  ├─ models.py               数据库表模型
 │  ├─ schemas.py              设备遥测 Pydantic 模型
 │  ├─ state.py                临时内存缓存 latest/history/subscribers
 │  ├─ routes/
+│  │  ├─ admin.py             管理员总览、CSV 导出
+│  │  ├─ auth.py              注册、登录、当前用户
+│  │  ├─ devices.py           设备创建、查询、绑定
 │  │  ├─ health.py            健康检查接口
+│  │  ├─ notifications.py     小程序通知
+│  │  ├─ students.py          学生创建、查询
 │  │  └─ telemetry.py         设备遥测相关接口
 │  └─ services/
+│     ├─ auth.py              密码哈希、JWT 生成和校验
+│     ├─ reports.py           规则报告和 LLM 报告生成
+│     ├─ risk.py              坐姿行为风险提示计算
+│     ├─ stats.py             每日统计计算和落库
 │     └─ telemetry.py         遥测保存、查询、WebSocket 广播
 ├─ tests/
 │  └─ test_api.py             后端 API 测试
@@ -61,6 +82,28 @@ $env:DATABASE_URL="mysql+pymysql://user:password@127.0.0.1:3306/spineguard"
 
 不要把真实数据库密码写入代码或提交到 GitHub。
 
+## 本地环境变量
+
+后端启动时会自动读取：
+
+```text
+backend/.env
+```
+
+当前 `.env` 已提供本地占位配置：
+
+```text
+SPINEGUARD_DEVICE_TOKEN=dev-token
+SPINEGUARD_SECRET_KEY=dev-secret-change-me
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
+LLM_API_KEY=填入你的LLM_API_KEY
+LLM_API_BASE=填入你的LLM_API_BASE
+LLM_MODEL=填入你的模型名称
+LLM_TIMEOUT_SECONDS=20
+```
+
+`.env` 已被 `.gitignore` 忽略，不应提交到 GitHub。你后续接入真实 LLM 时，只需要在本机修改 `backend/.env`，不要把真实密钥发到仓库或聊天记录里。
+
 ## 当前表结构
 
 当前 SQLAlchemy 会创建以下表：
@@ -76,6 +119,7 @@ daily_stats
 risk_assessments
 reports
 reminder_events
+notifications
 ```
 
 主要用途：
@@ -90,6 +134,7 @@ reminder_events
 - `risk_assessments`：坐姿行为风险提示。
 - `reports`：日报、周报、月报或智能报告。
 - `reminder_events`：提醒事件。
+- `notifications`：小程序通知。
 
 ## 测试用户
 
@@ -107,7 +152,7 @@ role: school_admin
 user_id: USR-DEMO-ADMIN
 ```
 
-当前还没有登录接口，这两个账号目前只用于数据库准备和后续 auth 接口开发。密码以测试哈希形式保存，不保存明文。
+这两个账号可用于登录接口测试。密码以测试哈希形式保存，不保存明文。
 
 ## 已有接口
 
@@ -143,6 +188,130 @@ Header: X-Device-Token: dev-token
 4. 更新内存 `latest` 缓存。
 5. 广播给 WebSocket 订阅者。
 
+### 用户注册
+
+```text
+POST /api/v1/auth/register
+```
+
+请求：
+
+```json
+{
+  "username": "parent_demo_2",
+  "password": "parent123",
+  "role": "parent"
+}
+```
+
+### 用户登录
+
+```text
+POST /api/v1/auth/login
+```
+
+请求：
+
+```json
+{
+  "username": "parent_demo",
+  "password": "parent123"
+}
+```
+
+返回 `access_token`，后续用户端接口使用：
+
+```text
+Authorization: Bearer <access_token>
+```
+
+### 当前用户
+
+```text
+GET /api/v1/auth/me
+```
+
+需要 Bearer Token。
+
+### 学生接口
+
+```text
+GET  /api/v1/students
+POST /api/v1/students
+GET  /api/v1/students/{student_id}
+GET  /api/v1/students/{student_id}/latest
+GET  /api/v1/students/{student_id}/history?from=&to=&limit=100
+GET  /api/v1/students/{student_id}/stats/daily?date=2026-07-11
+GET  /api/v1/students/{student_id}/stats/weekly?week=2026-W28
+GET  /api/v1/students/{student_id}/risk?date=2026-07-11
+GET  /api/v1/students/{student_id}/reports
+POST /api/v1/students/{student_id}/reports/generate
+```
+
+家长创建学生后会自动建立 `user_student_links` 关系。家长只能查看自己关联的学生；学校管理员、校医和管理员可查看全部学生。
+
+学生维度的 latest/history 会从 `posture_records.student_id` 查询数据。设备上传时，如果 `device_bindings` 中存在当前有效绑定，后端会自动把绑定的 `student_id` 写入坐姿记录。
+
+每日统计接口会读取指定日期的 `posture_records`，计算并写入/更新 `daily_stats`。当前统计口径：
+
+- 标准坐姿时长：按 `session_id` 分组后，根据相邻遥测点时间差估算 `normal` 时长。
+- 非标准坐姿时长：按 `session_id` 分组后，根据相邻遥测点时间差估算 `left_lean`、`right_lean`、`front_lean`、`back_lean`、`unknown` 时长。
+- 各类异常次数：按姿态切换次数估算。
+- 提醒次数：按会话内提醒计数变化估算，单条记录时回退为当前提醒次数。
+- 平均不对称指数：当天非 `empty` 记录的平均 `asymmetry_index`。
+
+这是基于当前遥测频率的会话级近似统计；设备上传频率越稳定，时长估算越准确。
+
+风险提示接口会基于近 7 天每日统计，返回：
+
+```text
+risk_level: green / yellow / red
+risk_score: 0~100
+risk_reasons: 风险原因列表
+suggestion: 行为建议和筛查参考
+```
+
+风险结果只能作为坐姿行为风险提示或筛查参考，不能表述为医学诊断。
+
+报告生成接口请求示例：
+
+```json
+{
+  "report_type": "weekly",
+  "use_llm": true,
+  "date": "2026-07-11"
+}
+```
+
+`use_llm=false` 时生成规则报告。`use_llm=true` 时后端会调用 `backend/.env` 中配置的大模型服务，接口按 OpenAI-compatible `/chat/completions` 请求。配置示例：
+
+```text
+LLM_API_KEY=your-local-secret
+LLM_API_BASE=https://example.com/v1
+LLM_MODEL=your-model-name
+LLM_TIMEOUT_SECONDS=20
+```
+
+不要把真实密钥、Token、学生姓名、手机号或真实班级信息提交到 GitHub。发送给模型的数据只包含匿名 `student_id` 和统计摘要。若 LLM 配置缺失、服务超时或返回格式不兼容，后端会返回 `generated_by=llm_fallback` 的规则兜底报告。
+
+### 设备接口
+
+```text
+GET  /api/v1/devices
+POST /api/v1/devices
+GET  /api/v1/devices/{device_id}/status
+POST /api/v1/devices/bind
+```
+
+创建设备需要 `school_admin` 或 `admin` 角色。绑定设备需要登录用户，当前阶段会记录绑定操作者。
+
+绑定规则：
+
+- 家长只能把设备绑定到自己关联的学生。
+- 同一设备同一时间只保持一个有效绑定。
+- 新绑定创建时，旧的 `active=true` 绑定会自动置为 `active=false`。
+- 设备上传数据时，设备状态会更新为 `online`，并同步电量、固件版本和模型版本。
+
 ### 查询设备最新数据
 
 ```text
@@ -154,18 +323,41 @@ GET /api/v1/devices/{device_id}/latest
 ### 查询设备历史数据
 
 ```text
-GET /api/v1/devices/{device_id}/history?limit=100
+GET /api/v1/devices/{device_id}/history?from=&to=&limit=100
 ```
 
-从数据库读取最近记录。`limit` 范围为 `1~2000`。
+从数据库读取最近记录。`limit` 范围为 `1~2000`。`from` 和 `to` 可选，支持毫秒时间戳、`YYYY-MM-DD` 或 ISO datetime。
 
 ### WebSocket
 
 ```text
 WS /api/v1/ws/devices/{device_id}
+WS /api/v1/ws/students/{student_id}?token=<access_token>
 ```
 
-当前用于实时推送设备遥测。第一阶段 Web 和小程序仍可使用轮询。
+设备维度 WebSocket 主要用于设备联调。学生维度 WebSocket 需要登录 token，家长只能订阅自己关联的学生，管理员/校医可订阅全部学生。
+
+### 管理员接口
+
+```text
+GET /api/v1/admin/overview
+GET /api/v1/admin/classes
+GET /api/v1/admin/classes/{class_id}/students
+GET /api/v1/admin/risk-students?risk_level=red
+GET /api/v1/admin/export?from=&to=&format=csv
+```
+
+当前管理员统计接口需要 `school_admin` 或 `admin`，高风险学生列表还允许 `doctor` 查看。总览返回学生数、设备数、在线设备数、平均标准坐姿率、高风险提示人数和班级摘要。导出支持 `format=csv` 和 `format=xlsx`，只导出匿名坐姿记录，不包含设备 Token、学生姓名、手机号或真实班级信息。
+
+### 小程序通知接口
+
+```text
+GET  /api/v1/notifications?unread_only=false
+POST /api/v1/notifications
+POST /api/v1/notifications/{notification_id}/read
+```
+
+家长能看到发给自己的通知、发给自己关联学生的通知和全局通知。管理员/校医可查看全部通知。创建通知需要 `school_admin` 或 `admin`。
 
 ## 运行后端
 
@@ -240,11 +432,10 @@ backend\.venv\Scripts\python.exe -c "import sqlite3; con=sqlite3.connect('backen
 
 建议后端下一阶段优先实现：
 
-1. `POST /api/v1/auth/login`
-2. `POST /api/v1/auth/register`
-3. `GET /api/v1/me`
-4. 设备注册和设备绑定接口
-5. 学生列表和学生详情接口
+1. 设备离线状态定时更新
+2. 通知自动生成策略
+3. 更细的统计图表专用聚合接口
+4. LLM 报告模板和提示词版本管理
+5. 数据库迁移工具，例如 Alembic
 
-完成这些后，Web 和小程序就可以从固定设备 Demo 逐步切换到真实账号和设备绑定流程。
-
+完成这些后，Web 和小程序就可以从“账号 + 设备绑定”继续推进到趋势图、风险提示和报告中心。

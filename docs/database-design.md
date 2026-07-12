@@ -210,3 +210,18 @@ users
 | `reason` | varchar | 触发原因 |
 | `created_at` | datetime | 入库时间 |
 
+## notifications
+
+小程序通知表。用于家长端、小程序端查看系统通知、风险提示、提醒和报告生成提示。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | bigint | 主键 |
+| `notification_id` | varchar | 对外通知编号 |
+| `user_id` | varchar nullable | 指定接收用户，空表示不限用户 |
+| `student_id` | varchar nullable | 指定关联学生，家长可查看自己关联学生的通知 |
+| `notification_type` | enum | `system`、`risk`、`reminder`、`report` |
+| `title` | varchar | 通知标题 |
+| `content` | text | 通知内容 |
+| `read_at` | datetime nullable | 已读时间 |
+| `created_at` | datetime | 创建时间 |

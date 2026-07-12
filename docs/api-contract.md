@@ -299,4 +299,3 @@ WS /api/v1/ws/students/{student_id}
 ```
 
 用途：实时坐姿状态、设备在线状态、提醒状态推送。
-

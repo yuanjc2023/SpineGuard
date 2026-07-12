@@ -173,3 +173,17 @@ class ReminderEvent(Base):
     posture: Mapped[str] = mapped_column(String(32), index=True)
     reason: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    notification_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    user_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    student_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    notification_type: Mapped[str] = mapped_column(String(32), default="system", index=True)
+    title: Mapped[str] = mapped_column(String(128))
+    content: Mapped[str] = mapped_column(Text)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
