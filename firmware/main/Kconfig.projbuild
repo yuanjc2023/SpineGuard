@@ -2,15 +2,15 @@ menu "SpineGuard"
 
 config SPINEGUARD_WIFI_SSID
     string "Wi-Fi SSID"
-    default ""
+    default "hust1234"
 
 config SPINEGUARD_WIFI_PASSWORD
     string "Wi-Fi password"
-    default ""
+    default "123456789"
 
 config SPINEGUARD_BACKEND_URL
     string "Telemetry API URL"
-    default "http://192.168.1.100:8000/api/v1/device/telemetry"
+    default "http://10.12.173.179:8000/api/v1/device/telemetry"
 
 config SPINEGUARD_DEVICE_TOKEN
     string "Device token"
@@ -19,5 +19,13 @@ config SPINEGUARD_DEVICE_TOKEN
 config SPINEGUARD_DEVICE_ID
     string "Device ID"
     default "SG-0001"
+
+config SPINEGUARD_SNTP_SERVER
+    string "SNTP server"
+    default "pool.ntp.org"
+
+config SPINEGUARD_VIBRATION_ENABLED
+    bool "Enable vibration reminders"
+    default n
 
 endmenu
