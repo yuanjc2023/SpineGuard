@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..models import DailyStat, PostureRecord
 
-POOR_POSTURES = {"left_lean", "right_lean", "front_lean", "back_lean", "unknown"}
+POOR_POSTURES = {"left_lean", "right_lean", "front_lean", "back_lean"}
 
 
 def calculate_daily_stat(student_id: str, stat_date: date, db: Session) -> DailyStat:

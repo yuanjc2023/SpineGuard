@@ -184,3 +184,12 @@ class NotificationOut(BaseModel):
     is_read: bool
     created_at: str
     read_at: str | None
+
+
+class IdempotentRequest(BaseModel):
+    idempotency_key: str = Field(min_length=8, max_length=128)
+
+
+class GardenActionRequest(IdempotentRequest):
+    action: Literal["sunbathe", "water", "fertilize", "recover_tree"]
+    quantity: int = Field(default=1, ge=1, le=5)

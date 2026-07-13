@@ -8,3 +8,4 @@ latest: dict[str, Telemetry] = {}
 history: dict[str, deque[Telemetry]] = defaultdict(lambda: deque(maxlen=5000))
 subscribers: dict[str, set[WebSocket]] = defaultdict(set)
 student_subscribers: dict[str, set[WebSocket]] = defaultdict(set)
+game_subscribers: dict[str, set[WebSocket]] = defaultdict(set)

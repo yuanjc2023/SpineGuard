@@ -101,11 +101,29 @@ def bind_device(
         )
     )
     if existing is not None:
+        conflicting = db.scalars(
+            select(DeviceBinding).where(
+                DeviceBinding.student_id == data.student_id,
+                DeviceBinding.device_id != data.device_id,
+                DeviceBinding.active.is_(True),
+            )
+        )
+        changed = False
+        for old in conflicting:
+            old.active = False
+            old.unbound_at = utc_now()
+            changed = True
+        if changed:
+            db.commit()
+            db.refresh(existing)
         return {"ok": True, "data": binding_out(existing).model_dump()}
 
     old_bindings = db.scalars(
         select(DeviceBinding).where(
-            DeviceBinding.device_id == data.device_id,
+            (
+                (DeviceBinding.device_id == data.device_id)
+                | (DeviceBinding.student_id == data.student_id)
+            ),
             DeviceBinding.active.is_(True),
         )
     )

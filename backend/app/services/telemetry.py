@@ -2,14 +2,26 @@ from datetime import datetime, time, timezone
 
 from fastapi import WebSocket
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .. import state
-from ..models import Device, DeviceBinding, PostureRecord, utc_now
+from ..models import Device, DeviceBinding, PostureRecord, TelemetryReceipt, utc_now
 from ..schemas import Telemetry
+from .game import process_telemetry
 
 
-async def save_telemetry(data: Telemetry, db: Session) -> None:
+async def save_telemetry(data: Telemetry, db: Session) -> dict:
+    receipt = db.scalar(
+        select(TelemetryReceipt).where(
+            TelemetryReceipt.device_id == data.device_id,
+            TelemetryReceipt.session_id == data.session_id,
+            TelemetryReceipt.seq == data.seq,
+        )
+    )
+    if receipt is not None:
+        return {"duplicate": True, "student_id": None, "game_events": []}
+
     binding = db.scalar(
         select(DeviceBinding)
         .where(DeviceBinding.device_id == data.device_id, DeviceBinding.active.is_(True))
@@ -18,14 +30,22 @@ async def save_telemetry(data: Telemetry, db: Session) -> None:
     )
     student_id = binding.student_id if binding else None
 
+    try:
+        with db.begin_nested():
+            db.add(TelemetryReceipt(device_id=data.device_id, session_id=data.session_id, seq=data.seq))
+            db.flush()
+    except IntegrityError:
+        return {"duplicate": True, "student_id": None, "game_events": []}
     record = to_posture_record(data, student_id)
     db.add(record)
     update_device_status(data, db)
+    game_events = process_telemetry(data, student_id, db)
     db.commit()
 
     state.latest[data.device_id] = data
     state.history[data.device_id].append(data)
     await broadcast_telemetry(data, student_id)
+    return {"duplicate": False, "student_id": student_id, "game_events": game_events}
 
 
 def get_device_latest(device_id: str, db: Session) -> Telemetry | dict | None:

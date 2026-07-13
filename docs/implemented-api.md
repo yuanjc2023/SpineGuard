@@ -11,6 +11,7 @@
 - 当前已实现每日统计和每周统计接口，统计口径基于 `session_id` 分组和相邻遥测时间片估算。
 - 当前 LLM 智能报告会读取 `backend/.env` 并调用 OpenAI-compatible `/chat/completions`；调用失败时自动返回规则兜底内容。
 - 当前已实现管理员总览、班级列表、班级详情统计、高风险学生列表、CSV/Excel 导出和小程序通知接口。
+- 当前已实现后端权威的种树游戏账户、姿态状态机、连续奖励、每日任务、资源操作、奖励流水和游戏 WebSocket。
 
 ## 通用规则
 
@@ -310,6 +311,7 @@ Authorization: Bearer <access_token>
 
 - 家长只能绑定到自己关联的学生
 - 同一设备同一时间只保留一个有效绑定
+- 同一学生同一时间只保留一个有效设备；绑定新设备时会解除该学生的旧设备绑定
 - 创建新绑定时，旧的 `active=true` 绑定会自动失效
 - `bind_code` 当前可选接收，暂不校验
 
@@ -347,6 +349,92 @@ docs/telemetry-contract.md
 5. 如果存在绑定，写入 `student_id`
 6. 更新设备在线状态、电量、固件版本和模型版本
 7. 广播 WebSocket
+
+此外，绑定学生的遥测会进入游戏状态机。`(device_id, session_id, seq)` 重复上传返回 `duplicate=true`，但不会重复累计、提醒或发奖。乱序 `seq` 可保留原始记录，但不会倒推已结算的游戏状态。
+
+## 游戏接口
+
+游戏后端规则版本为 `garden-v1`。后端不保存护脊运动，不提供专注会话接口；Web 和小程序的 15/30/45/60 分钟专注倒计时完全在前端运行，不能改变成长、资源、任务或奖励流水。
+
+### `GET /api/v1/game/rules`
+
+返回生长期、连续里程碑、资源操作、时间阈值和规则版本。
+
+### `GET /api/v1/students/{student_id}/garden`
+
+返回乐园完整状态，包括：
+
+```text
+growth / stage / resources
+today_normal_s / continuous_normal_s
+reminder_count / reminder_rate_30m
+daily_growth_granted / daily_growth_remaining
+device_online / instant_tree_state / recovery_needed
+tasks / rule_version / server_time / updated_at
+```
+
+设备最后一次服务端接收遥测超过 10 秒后，`device_online=false` 且 `instant_tree_state=offline`。超过 5 分钟后设备学习会话结束。
+
+### `POST /api/v1/students/{student_id}/daily-tasks/{task_id}/claim`
+
+可手动领取的任务：
+
+```text
+daily_normal_30
+continuous_25
+```
+
+请求：
+
+```json
+{"idempotency_key": "client-generated-unique-key"}
+```
+
+`daily_reminder_lt_5` 和 `active_rest_after_60` 由后端自动发放，不能手动领取。护脊运动任务不在后端实现。
+
+### `POST /api/v1/students/{student_id}/garden/actions`
+
+请求：
+
+```json
+{
+  "action": "water",
+  "quantity": 1,
+  "idempotency_key": "client-generated-unique-key"
+}
+```
+
+操作支持 `sunbathe`、`water`、`fertilize`、`recover_tree`。`quantity` 为 1～5，`recover_tree` 必须为 1。资源校验、扣减、成长增加和流水写入在同一事务中完成。
+
+### `GET /api/v1/students/{student_id}/reward-ledger?cursor=&limit=50`
+
+分页返回成长和资源流水。流水不包含健康值。
+
+### `WS /api/v1/ws/students/{student_id}/game?token=<access_token>`
+
+推送 `garden.updated`、`posture.state_changed`、`abnormal.reminded`、`continuous.reset` 和 `milestone.granted` 等事件。断线恢复时应重新请求 `GET garden`。
+
+### 游戏结算口径
+
+- 异常 30 秒提醒一次，60 秒连续正确时长清零，同一异常片段不重复处理。
+- 恢复 `normal` 稳定 5 秒后关闭异常片段。
+- `empty`、`unknown` 和离线均暂停正确计时；`unknown` 不计入不良坐姿。
+- 连续里程碑 5/15/30/45/60 分钟实时发放资源。
+- 基础成长每天 20:00 按 `Asia/Shanghai` 结算，每日最多 180 点。
+- 20:00 后新增的当日数据会在下一次 20:00 补结算，并继续占用原自然日额度。
+- 如果后端在 20:00 未运行，下次启动会幂等补发过往未结算数据。
+- 每个确认时间片最多 10 秒，设备断线期间不会累计时长、提醒或奖励。
+
+业务冲突使用 HTTP 409，`detail.code` 可能为：
+
+```text
+INSUFFICIENT_RESOURCE
+TASK_NOT_CLAIMABLE
+TASK_ALREADY_CLAIMED
+POSTURE_STILL_ABNORMAL
+RECOVERY_NOT_NEEDED
+INVALID_QUANTITY
+```
 
 ## WebSocket
 
@@ -491,6 +579,6 @@ report
 
 以下接口仍是后续计划：
 
-- 设备离线状态定时更新
 - 通知自动生成策略
 - 更细的统计图表专用聚合接口
+- Alembic 数据库迁移脚本

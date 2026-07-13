@@ -86,6 +86,16 @@ def test_database_tables_created():
         "reports",
         "reminder_events",
         "notifications",
+        "telemetry_receipts",
+        "device_session_states",
+        "abnormal_episodes",
+        "growth_settlement_segments",
+        "garden_accounts",
+        "game_daily_progress",
+        "reward_ledger",
+        "milestone_claims",
+        "daily_task_states",
+        "idempotency_records",
     }.issubset(table_names)
 
 

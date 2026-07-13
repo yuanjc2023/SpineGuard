@@ -7,6 +7,7 @@ from ..db import SessionLocal, get_db
 from ..models import User, UserStudentLink
 from ..schemas import Telemetry
 from ..services.auth import decode_access_token
+from ..services.game_realtime import broadcast_game_events
 from ..services.telemetry import (
     get_device_history,
     get_device_latest,
@@ -30,8 +31,10 @@ async def receive(
     if x_device_token != DEVICE_TOKEN:
         raise HTTPException(status_code=401, detail="Invalid device token")
 
-    await save_telemetry(data, db)
-    return {"ok": True, "received_seq": data.seq}
+    result = await save_telemetry(data, db)
+    if result["student_id"]:
+        await broadcast_game_events(result["student_id"], result["game_events"], db)
+    return {"ok": True, "received_seq": data.seq, "duplicate": result["duplicate"]}
 
 
 @router.get("/devices/{device_id}/latest")

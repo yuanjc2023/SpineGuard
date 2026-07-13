@@ -1,6 +1,6 @@
 # SpineGuard 后端说明
 
-本目录是 SpineGuard 的 FastAPI 后端。当前阶段已经完成基础目录拆分、SQLite/SQLAlchemy 接入、账号认证、学生/设备/绑定接口、设备遥测落库、历史查询、基于会话时间片的每日/每周统计、坐姿行为风险提示、真实 LLM 报告接口、学生维度 WebSocket、管理员统计、CSV/Excel 导出和小程序通知接口。
+本目录是 SpineGuard 的 FastAPI 后端。当前阶段已经完成基础业务接口，并新增后端权威的种树游戏模块：设备学习会话、姿态状态机、连续奖励、20:00 基础成长结算、每日任务、资源操作、奖励流水和游戏 WebSocket。
 
 ## 当前能力
 
@@ -23,6 +23,10 @@
 - 提供管理员总览、班级统计、高风险学生列表和匿名坐姿记录 CSV/Excel 导出。
 - 提供小程序通知列表、通知创建和标记已读接口。
 - 启动时自动创建数据库表。
+- 同一学生同一时间只允许一个有效设备绑定。
+- 遥测按 `(device_id, session_id, seq)` 幂等接收，重复数据不重复结算。
+- 10 秒无遥测显示离线，5 分钟无遥测自动结束设备会话。
+- 专注倒计时和护脊运动只由前端实现，不进入后端游戏账户。
 - 提供独立测试数据库，避免 pytest 清空正式开发数据库。
 
 ## 目录结构
@@ -41,12 +45,16 @@ backend/
 │  │  ├─ auth.py              注册、登录、当前用户
 │  │  ├─ devices.py           设备创建、查询、绑定
 │  │  ├─ health.py            健康检查接口
+│  │  ├─ game.py              乐园、任务、资源、流水和游戏 WebSocket
 │  │  ├─ notifications.py     小程序通知
 │  │  ├─ students.py          学生创建、查询
 │  │  └─ telemetry.py         设备遥测相关接口
 │  └─ services/
 │     ├─ auth.py              密码哈希、JWT 生成和校验
 │     ├─ reports.py           规则报告和 LLM 报告生成
+│     ├─ game.py              游戏状态机、结算和账户服务
+│     ├─ game_realtime.py     游戏事件推送
+│     ├─ maintenance.py       离线、20:00 成长和日终任务维护
 │     ├─ risk.py              坐姿行为风险提示计算
 │     ├─ stats.py             每日统计计算和落库
 │     └─ telemetry.py         遥测保存、查询、WebSocket 广播
@@ -120,6 +128,16 @@ risk_assessments
 reports
 reminder_events
 notifications
+telemetry_receipts
+device_session_states
+abnormal_episodes
+growth_settlement_segments
+garden_accounts
+game_daily_progress
+reward_ledger
+milestone_claims
+daily_task_states
+idempotency_records
 ```
 
 主要用途：
@@ -135,6 +153,27 @@ notifications
 - `reports`：日报、周报、月报或智能报告。
 - `reminder_events`：提醒事件。
 - `notifications`：小程序通知。
+- `telemetry_receipts`：遥测业务唯一回执，用于阻止重复结算。
+- `device_session_states`、`abnormal_episodes`：设备会话和异常片段状态机。
+- `game_daily_progress`、`growth_settlement_segments`：自然日进度和 20:00 成长结算段。
+- `garden_accounts`、`reward_ledger`：成长、资源账户和只追加流水。
+- `milestone_claims`、`daily_task_states`：连续里程碑和每日任务。
+- `idempotency_records`：任务领取与资源操作的请求幂等结果。
+
+## 游戏模块
+
+```text
+GET  /api/v1/game/rules
+GET  /api/v1/students/{student_id}/garden
+POST /api/v1/students/{student_id}/daily-tasks/{task_id}/claim
+POST /api/v1/students/{student_id}/garden/actions
+GET  /api/v1/students/{student_id}/reward-ledger?cursor=&limit=50
+WS   /api/v1/ws/students/{student_id}/game?token=<access_token>
+```
+
+基础成长在每天北京时间 20:00 结算，当天总上限为 180 点。后端错过结算时刻时会在下一次启动补发；20:00 后产生的数据在下一次 20:00 补结算，仍归属于原自然日。连续里程碑资源实时发放。
+
+前端专注页面只负责 15/30/45/60 分钟倒计时。后端没有 `focus_sessions`、护脊运动完成接口或专注奖励来源，专注操作不会改变乐园状态。
 
 ## 测试用户
 
