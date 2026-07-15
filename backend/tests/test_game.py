@@ -4,6 +4,7 @@ from pathlib import Path
 
 TEST_DB_PATH = Path(__file__).resolve().parents[1] / "test_spineguard.db"
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH.as_posix()}"
+os.environ["AUTO_REPORT_ENABLED"] = "false"
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select

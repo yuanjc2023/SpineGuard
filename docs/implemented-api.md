@@ -12,6 +12,7 @@
 - 当前 LLM 智能报告会读取 `backend/.env` 并调用 OpenAI-compatible `/chat/completions`；调用失败时自动返回规则兜底内容。
 - 当前已实现管理员总览、班级列表、班级详情统计、高风险学生列表、CSV/Excel 导出和小程序通知接口。
 - 当前已实现后端权威的种树游戏账户、姿态状态机、连续奖励、每日任务、资源操作、奖励流水和游戏 WebSocket。
+- 当前已实现日报、自然周报、自然月报定时生成，并在生成成功后创建站内通知。
 
 ## 通用规则
 
@@ -267,6 +268,36 @@ Authorization: Bearer <access_token>
 - `use_llm=true` 时调用 `backend/.env` 中配置的大模型服务，接口按 OpenAI-compatible `/chat/completions` 请求
 - 真实 LLM 密钥只在 `backend/.env` 中填写，不能提交到 GitHub
 - 如果 LLM 配置缺失、服务超时或返回格式不兼容，后端会返回 `generated_by=llm_fallback` 的规则兜底报告
+
+### 自动报告和站内通知
+
+后端后台任务按北京时间自动生成：
+
+```text
+日报：每天 00:10，生成前一个完整自然日
+周报：每周一 00:20，生成上周一至上周日
+月报：每月 1 日 00:30，生成上一个自然月
+```
+
+自动报告规则：
+
+- 报告周期和每日统计均按北京时间自然日切分，不按 UTC 日期切分。
+- 只有学生在对应周期内存在坐姿遥测时才生成，空周期不生成报告或通知，也不调用 LLM。
+- 统计值和风险等级由固定算法计算；LLM 只负责将匿名统计摘要整理成自然语言。
+- 默认尝试现有 LLM API，调用失败时仍保存 `generated_by=llm_fallback` 的规则报告。
+- 同一学生、报告类型和自然周期只自动生成一次；后台循环重复执行或后端重启不会重复生成。
+- 后端启动时默认补偿最近 7 个完整自然日中遗漏的日报，并补偿最近一个完整自然周和完整自然月。
+- 自动报告成功后写入一条 `notification_type=report` 的站内通知，前端通过 `GET /api/v1/notifications` 获取。
+
+可在 `backend/.env` 配置：
+
+```text
+AUTO_REPORT_ENABLED=true
+AUTO_REPORT_USE_LLM=true
+AUTO_REPORT_CATCH_UP_DAYS=7
+```
+
+`AUTO_REPORT_USE_LLM=false` 时自动报告完全使用规则模板，不调用 LLM。手动报告接口的 `use_llm` 参数不受该开关影响。
 
 ## 设备接口
 
@@ -579,6 +610,6 @@ report
 
 以下接口仍是后续计划：
 
-- 通知自动生成策略
+- 微信订阅消息、邮件等站外推送
 - 更细的统计图表专用聚合接口
 - Alembic 数据库迁移脚本

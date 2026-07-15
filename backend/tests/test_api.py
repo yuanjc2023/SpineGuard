@@ -5,6 +5,7 @@ from zipfile import ZipFile
 
 TEST_DB_PATH = Path(__file__).resolve().parents[1] / "test_spineguard.db"
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH.as_posix()}"
+os.environ["AUTO_REPORT_ENABLED"] = "false"
 
 from fastapi.testclient import TestClient
 from app import state
@@ -84,6 +85,7 @@ def test_database_tables_created():
         "daily_stats",
         "risk_assessments",
         "reports",
+        "scheduled_report_runs",
         "reminder_events",
         "notifications",
         "telemetry_receipts",
@@ -229,7 +231,7 @@ def test_daily_stats_are_calculated_and_persisted():
 
         login = client.post("/api/v1/auth/login", json={"username": "parent_demo", "password": "parent123"})
         headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
-        stat = client.get("/api/v1/students/STU-DEMO-001/stats/daily?date=2026-07-11", headers=headers)
+        stat = client.get("/api/v1/students/STU-DEMO-001/stats/daily?date=2026-07-12", headers=headers)
         assert stat.status_code == 200
         data = stat.json()["data"]
         assert data["normal_sitting_s"] == 60
@@ -279,7 +281,7 @@ def test_risk_and_report_endpoints_use_screening_language(monkeypatch):
         login = client.post("/api/v1/auth/login", json={"username": "parent_demo", "password": "parent123"})
         headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
 
-        risk = client.get("/api/v1/students/STU-RISK-001/risk?date=2026-07-11", headers=headers)
+        risk = client.get("/api/v1/students/STU-RISK-001/risk?date=2026-07-12", headers=headers)
         assert risk.status_code == 200
         assert risk.json()["data"]["risk_level"] == "red"
         assert "诊断" not in risk.json()["data"]["suggestion"]
@@ -287,7 +289,7 @@ def test_risk_and_report_endpoints_use_screening_language(monkeypatch):
         report = client.post(
             "/api/v1/students/STU-RISK-001/reports/generate",
             headers=headers,
-            json={"report_type": "daily", "use_llm": False, "date": "2026-07-11"},
+            json={"report_type": "daily", "use_llm": False, "date": "2026-07-12"},
         )
         assert report.status_code == 200
         assert report.json()["data"]["generated_by"] == "rule"
@@ -296,7 +298,7 @@ def test_risk_and_report_endpoints_use_screening_language(monkeypatch):
         llm_report = client.post(
             "/api/v1/students/STU-RISK-001/reports/generate",
             headers=headers,
-            json={"report_type": "weekly", "use_llm": True, "date": "2026-07-11"},
+            json={"report_type": "weekly", "use_llm": True, "date": "2026-07-12"},
         )
         assert llm_report.status_code == 200
         assert llm_report.json()["data"]["generated_by"] == "llm_fallback"
@@ -415,7 +417,7 @@ def test_admin_risk_students_and_notifications():
         admin_login = client.post("/api/v1/auth/login", json={"username": "school_admin_demo", "password": "admin123"})
         admin_headers = {"Authorization": f"Bearer {admin_login.json()['access_token']}"}
 
-        risk = client.get("/api/v1/students/STU-NOTIFY-001/risk?date=2026-07-11", headers=parent_headers)
+        risk = client.get("/api/v1/students/STU-NOTIFY-001/risk?date=2026-07-12", headers=parent_headers)
         assert risk.status_code == 200
         assert risk.json()["data"]["risk_level"] == "red"
 
@@ -494,7 +496,7 @@ def test_session_level_stats_use_time_slices():
         )
         login = client.post("/api/v1/auth/login", json={"username": "parent_demo", "password": "parent123"})
         headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
-        stat = client.get("/api/v1/students/STU-SESSION-001/stats/daily?date=2026-07-11", headers=headers)
+        stat = client.get("/api/v1/students/STU-SESSION-001/stats/daily?date=2026-07-12", headers=headers)
         assert stat.status_code == 200
         data = stat.json()["data"]
         assert data["normal_sitting_s"] == 25

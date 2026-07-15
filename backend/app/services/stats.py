@@ -6,11 +6,17 @@ from sqlalchemy.orm import Session
 from ..models import DailyStat, PostureRecord
 
 POOR_POSTURES = {"left_lean", "right_lean", "front_lean", "back_lean"}
+CHINA_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 
 
-def calculate_daily_stat(student_id: str, stat_date: date, db: Session) -> DailyStat:
-    start_ms = int(datetime.combine(stat_date, time.min, tzinfo=timezone.utc).timestamp() * 1000)
-    end_ms = int(datetime.combine(stat_date, time.max, tzinfo=timezone.utc).timestamp() * 1000)
+def calculate_daily_stat(
+    student_id: str,
+    stat_date: date,
+    db: Session,
+    commit: bool = True,
+) -> DailyStat:
+    start_ms = int(datetime.combine(stat_date, time.min, tzinfo=CHINA_TZ).timestamp() * 1000)
+    end_ms = int(datetime.combine(stat_date, time.max, tzinfo=CHINA_TZ).timestamp() * 1000)
 
     records = list(
         db.scalars(
@@ -51,8 +57,11 @@ def calculate_daily_stat(student_id: str, stat_date: date, db: Session) -> Daily
     stat.reminder_count = reminder_count
     stat.avg_asymmetry_index = avg_asymmetry_index
     stat.max_poor_posture_duration_s = max_poor_posture_duration_s
-    db.commit()
-    db.refresh(stat)
+    if commit:
+        db.commit()
+        db.refresh(stat)
+    else:
+        db.flush()
     return stat
 
 

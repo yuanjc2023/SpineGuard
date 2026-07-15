@@ -1,6 +1,6 @@
 # SpineGuard 后端说明
 
-本目录是 SpineGuard 的 FastAPI 后端。当前阶段已经完成基础业务接口，并新增后端权威的种树游戏模块：设备学习会话、姿态状态机、连续奖励、20:00 基础成长结算、每日任务、资源操作、奖励流水和游戏 WebSocket。
+本目录是 SpineGuard 的 FastAPI 后端。当前阶段已经完成基础业务接口、种树游戏模块，以及日报、自然周报、自然月报自动生成和站内通知。
 
 ## 当前能力
 
@@ -27,6 +27,7 @@
 - 遥测按 `(device_id, session_id, seq)` 幂等接收，重复数据不重复结算。
 - 10 秒无遥测显示离线，5 分钟无遥测自动结束设备会话。
 - 专注倒计时和护脊运动只由前端实现，不进入后端游戏账户。
+- 自动报告使用固定算法生成统计与风险结论，可选使用 LLM 增强文字，失败时保存规则兜底报告。
 - 提供独立测试数据库，避免 pytest 清空正式开发数据库。
 
 ## 目录结构
@@ -55,6 +56,7 @@ backend/
 │     ├─ game.py              游戏状态机、结算和账户服务
 │     ├─ game_realtime.py     游戏事件推送
 │     ├─ maintenance.py       离线、20:00 成长和日终任务维护
+│     ├─ scheduled_reports.py 自动日报、周报、月报和站内通知
 │     ├─ risk.py              坐姿行为风险提示计算
 │     ├─ stats.py             每日统计计算和落库
 │     └─ telemetry.py         遥测保存、查询、WebSocket 广播
@@ -108,9 +110,14 @@ LLM_API_KEY=填入你的LLM_API_KEY
 LLM_API_BASE=填入你的LLM_API_BASE
 LLM_MODEL=填入你的模型名称
 LLM_TIMEOUT_SECONDS=20
+AUTO_REPORT_ENABLED=true
+AUTO_REPORT_USE_LLM=true
+AUTO_REPORT_CATCH_UP_DAYS=7
 ```
 
 `.env` 已被 `.gitignore` 忽略，不应提交到 GitHub。你后续接入真实 LLM 时，只需要在本机修改 `backend/.env`，不要把真实密钥发到仓库或聊天记录里。
+
+自动报告和每日统计均按北京时间自然日切分：日报每天 00:10，周报每周一 00:20，月报每月 1 日 00:30。对应周期没有坐姿数据时跳过；生成成功后创建 `report` 类型站内通知。启动时会补偿遗漏周期，唯一任务记录确保不会重复生成。
 
 ## 当前表结构
 
@@ -126,6 +133,7 @@ posture_records
 daily_stats
 risk_assessments
 reports
+scheduled_report_runs
 reminder_events
 notifications
 telemetry_receipts
@@ -151,6 +159,7 @@ idempotency_records
 - `daily_stats`：每日统计。
 - `risk_assessments`：坐姿行为风险提示。
 - `reports`：日报、周报、月报或智能报告。
+- `scheduled_report_runs`：自动报告周期、状态、报告 ID 和通知 ID，用于防止重复生成。
 - `reminder_events`：提醒事件。
 - `notifications`：小程序通知。
 - `telemetry_receipts`：遥测业务唯一回执，用于阻止重复结算。

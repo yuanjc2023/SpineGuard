@@ -8,9 +8,17 @@ from ..models import DailyStat, RiskAssessment
 from .stats import calculate_daily_stat
 
 
-def assess_risk(student_id: str, end_date: date, db: Session) -> RiskAssessment:
+def assess_risk(
+    student_id: str,
+    end_date: date,
+    db: Session,
+    commit: bool = True,
+) -> RiskAssessment:
     period_start = end_date - timedelta(days=6)
-    stats = [calculate_daily_stat(student_id, period_start + timedelta(days=i), db) for i in range(7)]
+    stats = [
+        calculate_daily_stat(student_id, period_start + timedelta(days=i), db, commit=commit)
+        for i in range(7)
+    ]
     active_stats = [s for s in stats if s.total_sitting_s > 0]
 
     poor_sitting_s = sum(s.poor_sitting_s for s in active_stats)
@@ -79,8 +87,11 @@ def assess_risk(student_id: str, end_date: date, db: Session) -> RiskAssessment:
     assessment.risk_score = score
     assessment.risk_reasons = json.dumps(reasons, ensure_ascii=False)
     assessment.suggestion = suggestion
-    db.commit()
-    db.refresh(assessment)
+    if commit:
+        db.commit()
+        db.refresh(assessment)
+    else:
+        db.flush()
     return assessment
 
 
@@ -94,4 +105,3 @@ def risk_to_dict(assessment: RiskAssessment) -> dict:
         "risk_reasons": json.loads(assessment.risk_reasons),
         "suggestion": assessment.suggestion,
     }
-

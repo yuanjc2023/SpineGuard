@@ -163,6 +163,32 @@ class Report(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
+class ScheduledReportRun(Base, TimestampMixin):
+    __tablename__ = "scheduled_report_runs"
+    __table_args__ = (
+        UniqueConstraint(
+            "student_id",
+            "report_type",
+            "period_start",
+            "period_end",
+            name="uq_scheduled_report_run",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    student_id: Mapped[str] = mapped_column(String(64), index=True)
+    report_type: Mapped[str] = mapped_column(String(32), index=True)
+    period_start: Mapped[date] = mapped_column(Date, index=True)
+    period_end: Mapped[date] = mapped_column(Date, index=True)
+    scheduled_for: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
+    report_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    notification_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    generated_by: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class ReminderEvent(Base):
     __tablename__ = "reminder_events"
 

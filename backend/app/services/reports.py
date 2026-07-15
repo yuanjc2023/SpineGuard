@@ -18,15 +18,17 @@ def generate_report(
     end_date: date,
     use_llm: bool,
     db: Session,
+    period_start: date | None = None,
+    commit: bool = True,
 ) -> Report:
-    period_start = period_start_for(report_type, end_date)
+    period_start = period_start or period_start_for(report_type, end_date)
     daily_stats = []
     day = period_start
     while day <= end_date:
-        daily_stats.append(calculate_daily_stat(student_id, day, db))
+        daily_stats.append(calculate_daily_stat(student_id, day, db, commit=commit))
         day += timedelta(days=1)
 
-    risk = assess_risk(student_id, end_date, db)
+    risk = assess_risk(student_id, end_date, db, commit=commit)
     summary = {
         "student_id": student_id,
         "report_type": report_type,
@@ -55,8 +57,11 @@ def generate_report(
         generated_by=generated_by,
     )
     db.add(report)
-    db.commit()
-    db.refresh(report)
+    if commit:
+        db.commit()
+        db.refresh(report)
+    else:
+        db.flush()
     return report
 
 
