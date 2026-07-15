@@ -2,7 +2,12 @@ import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-TEST_DB_PATH = Path(__file__).resolve().parents[1] / "test_spineguard.db"
+TEST_DB_PATH = Path(
+    os.getenv(
+        "SPINEGUARD_TEST_DB_PATH",
+        str(Path(__file__).resolve().parents[1] / "test_spineguard.db"),
+    )
+)
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH.as_posix()}"
 os.environ["AUTO_REPORT_ENABLED"] = "false"
 

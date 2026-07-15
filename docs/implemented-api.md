@@ -247,23 +247,29 @@ Authorization: Bearer <access_token>
 
 获取该学生已生成报告列表。
 
+### `GET /api/v1/students/{student_id}/reports/{report_id}`
+
+获取单份报告详情。自动报告通知会返回 `related_report_id`，前端可使用该接口打开对应报告。
+
 ### `POST /api/v1/students/{student_id}/reports/generate`
 
-生成日报、周报或月报。
+默认读取该学生最近 600 条坐姿记录并调用 LLM 生成智能报告，也兼容手动生成日报、周报或月报。
 
 请求：
 
 ```json
 {
-  "report_type": "weekly",
-  "use_llm": true,
-  "date": "2026-07-11"
+  "report_type": "smart",
+  "record_limit": 600
 }
 ```
 
 说明：
 
-- `report_type` 可选 `daily`、`weekly`、`monthly`
+- `report_type` 可选 `smart`、`daily`、`weekly`、`monthly`，默认为 `smart`
+- `smart` 默认读取最近 600 条，`record_limit` 范围为 1～1000，并始终尝试调用 LLM
+- `smart` 报告由后端计算五类姿态时长/比例、提醒次数、最长异常时长和趋势，再把匿名摘要及精简记录发给 LLM
+- `daily/weekly/monthly` 保留原有手动周期报告能力
 - `use_llm=false` 时生成规则报告
 - `use_llm=true` 时调用 `backend/.env` 中配置的大模型服务，接口按 OpenAI-compatible `/chat/completions` 请求
 - 真实 LLM 密钥只在 `backend/.env` 中填写，不能提交到 GitHub
@@ -288,6 +294,8 @@ Authorization: Bearer <access_token>
 - 同一学生、报告类型和自然周期只自动生成一次；后台循环重复执行或后端重启不会重复生成。
 - 后端启动时默认补偿最近 7 个完整自然日中遗漏的日报，并补偿最近一个完整自然周和完整自然月。
 - 自动报告成功后写入一条 `notification_type=report` 的站内通知，前端通过 `GET /api/v1/notifications` 获取。
+- 自动报告摘要包含五类姿态时长/比例、总提醒、提醒峰值日、最长异常时长和前后半段趋势。
+- 报告通知初始 `is_read=false`，并返回 `related_report_id`；调用标记已读接口后变为 `is_read=true`。
 
 可在 `backend/.env` 配置：
 

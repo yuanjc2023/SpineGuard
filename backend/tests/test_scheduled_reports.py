@@ -2,7 +2,12 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-TEST_DB_PATH = Path(__file__).resolve().parents[1] / "test_spineguard.db"
+TEST_DB_PATH = Path(
+    os.getenv(
+        "SPINEGUARD_TEST_DB_PATH",
+        str(Path(__file__).resolve().parents[1] / "test_spineguard.db"),
+    )
+)
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH.as_posix()}"
 os.environ["AUTO_REPORT_ENABLED"] = "false"
 
@@ -119,6 +124,12 @@ def test_daily_auto_report_is_idempotent_and_creates_visible_notification(monkey
     assert run.notification_id == notification.notification_id
     assert notification.notification_type == "report"
     assert notification.student_id == "STU-AUTO-001"
+    summary = __import__("json").loads(report.summary_json)
+    assert set(summary["posture_stats"]) == {
+        "normal", "left_lean", "right_lean", "front_lean", "back_lean"
+    }
+    assert "reminder_peak_day" in summary
+    assert "trend" in summary
     db.close()
 
     with TestClient(app) as client:
@@ -128,6 +139,17 @@ def test_daily_auto_report_is_idempotent_and_creates_visible_notification(monkey
         assert notifications.status_code == 200
         assert notifications.json()["total"] == 1
         assert notifications.json()["items"][0]["title"] == "坐姿日报已生成"
+        item = notifications.json()["items"][0]
+        assert item["is_read"] is False
+        assert item["related_report_id"] == first[0]["report_id"]
+        detail = client.get(
+            f"/api/v1/students/STU-AUTO-001/reports/{item['related_report_id']}",
+            headers=headers,
+        )
+        assert detail.status_code == 200
+        marked = client.post(f"/api/v1/notifications/{item['notification_id']}/read", headers=headers)
+        assert marked.status_code == 200
+        assert marked.json()["data"]["is_read"] is True
 
 
 def test_auto_report_skips_empty_period_and_uses_rule_fallback(monkeypatch):

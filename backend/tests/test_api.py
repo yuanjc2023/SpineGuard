@@ -3,7 +3,12 @@ from pathlib import Path
 from io import BytesIO
 from zipfile import ZipFile
 
-TEST_DB_PATH = Path(__file__).resolve().parents[1] / "test_spineguard.db"
+TEST_DB_PATH = Path(
+    os.getenv(
+        "SPINEGUARD_TEST_DB_PATH",
+        str(Path(__file__).resolve().parents[1] / "test_spineguard.db"),
+    )
+)
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH.as_posix()}"
 os.environ["AUTO_REPORT_ENABLED"] = "false"
 
@@ -548,3 +553,76 @@ def test_llm_report_uses_real_api_shape(monkeypatch):
         assert report.status_code == 200
         assert report.json()["data"]["generated_by"] == "llm"
         assert report.json()["data"]["content"] == "LLM report ok"
+
+
+def test_default_smart_report_uses_latest_600_records(monkeypatch):
+    reset_db()
+    seed_user("USR-SMART-PARENT", "smart_parent", "parent123", "parent")
+    captured = {}
+
+    def fake_llm(payload, report_mode="scheduled", fallback_summary=None):
+        captured["payload"] = payload
+        captured["report_mode"] = report_mode
+        captured["fallback_summary"] = fallback_summary
+        return "最近600条智能报告"
+
+    monkeypatch.setattr("app.services.reports.generate_llm_report", fake_llm)
+
+    from app.db import SessionLocal
+
+    db = SessionLocal()
+    db.add(Student(student_id="STU-SMART-001", display_code="STU-SMART-001"))
+    db.add(UserStudentLink(user_id="USR-SMART-PARENT", student_id="STU-SMART-001", relation="guardian"))
+    base_ms = 1784160000000
+    postures = ["normal", "left_lean", "right_lean", "front_lean", "back_lean"]
+    for seq in range(650):
+        posture = postures[seq % len(postures)]
+        item = telemetry_payload(
+            device_id="SG-SMART-001",
+            seq=seq,
+            timestamp_ms=base_ms + seq * 2000,
+            posture=posture,
+            posture_duration_s=2,
+            reminder_count=seq // 100,
+        )
+        db.add(PostureRecord(
+            device_id=item["device_id"], student_id="STU-SMART-001", session_id="SMART-S1",
+            seq=seq, timestamp_ms=item["timestamp_ms"], posture=posture, confidence=0.95,
+            pressure_left=500, pressure_right=510, pressure_front=400, pressure_back=600,
+            pressure_center=700, total_pressure=2710, left_right_diff=-10, front_back_diff=-200,
+            center_x=-0.01, center_y=-0.16, asymmetry_index=0.2, tilt_x=1, tilt_y=2,
+            shake_level=0, posture_duration_s=2, sitting_duration_s=seq * 2,
+            vibration_enabled=True, warning_active=posture != "normal", reminder_count=seq // 100,
+            battery_level=88, recognition_source="mock", model_version="mock-v1", firmware_version="mock-v1",
+        ))
+    db.commit()
+    db.close()
+
+    with TestClient(app) as client:
+        login = client.post("/api/v1/auth/login", json={"username": "smart_parent", "password": "parent123"})
+        headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+        response = client.post(
+            "/api/v1/students/STU-SMART-001/reports/generate",
+            headers=headers,
+            json={},
+        )
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["report_type"] == "smart"
+        assert data["generated_by"] == "llm"
+        assert data["summary"]["record_count"] == 600
+        assert set(data["summary"]["posture_stats"]) == {
+            "normal", "left_lean", "right_lean", "front_lean", "back_lean"
+        }
+        assert data["summary"]["max_continuous_abnormal_s"] > 0
+        assert captured["report_mode"] == "latest_records"
+        assert captured["fallback_summary"]["record_count"] == 600
+        assert len(captured["payload"]["records"]) == 600
+        assert captured["payload"]["records"][0]["t"] == base_ms + 50 * 2000
+
+        detail = client.get(
+            f"/api/v1/students/STU-SMART-001/reports/{data['report_id']}",
+            headers=headers,
+        )
+        assert detail.status_code == 200
+        assert detail.json()["data"]["content"] == "最近600条智能报告"

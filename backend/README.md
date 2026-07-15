@@ -28,6 +28,7 @@
 - 10 秒无遥测显示离线，5 分钟无遥测自动结束设备会话。
 - 专注倒计时和护脊运动只由前端实现，不进入后端游戏账户。
 - 自动报告使用固定算法生成统计与风险结论，可选使用 LLM 增强文字，失败时保存规则兜底报告。
+- 用户点击生成报告时，默认分析最近 600 条坐姿记录并调用 LLM；自动报告继续按自然日、周、月生成。
 - 提供独立测试数据库，避免 pytest 清空正式开发数据库。
 
 ## 目录结构
@@ -293,6 +294,7 @@ GET  /api/v1/students/{student_id}/stats/daily?date=2026-07-11
 GET  /api/v1/students/{student_id}/stats/weekly?week=2026-W28
 GET  /api/v1/students/{student_id}/risk?date=2026-07-11
 GET  /api/v1/students/{student_id}/reports
+GET  /api/v1/students/{student_id}/reports/{report_id}
 POST /api/v1/students/{student_id}/reports/generate
 ```
 
@@ -331,7 +333,9 @@ suggestion: 行为建议和筛查参考
 }
 ```
 
-`use_llm=false` 时生成规则报告。`use_llm=true` 时后端会调用 `backend/.env` 中配置的大模型服务，接口按 OpenAI-compatible `/chat/completions` 请求。配置示例：
+默认请求体 `{}` 会使用最近 600 条记录生成 `smart` 智能报告；也可显式传入 `{"report_type":"smart","record_limit":600}`。原有 `daily/weekly/monthly + use_llm` 用法继续兼容。详细实现和前端调用见 `backend/REPORT_AND_NOTIFICATION_GUIDE.md`。
+
+后端调用 `backend/.env` 中配置的大模型服务，接口按 OpenAI-compatible `/chat/completions` 请求。配置示例：
 
 ```text
 LLM_API_KEY=your-local-secret

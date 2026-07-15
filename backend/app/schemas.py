@@ -150,9 +150,10 @@ class RiskAssessmentOut(BaseModel):
 
 
 class ReportGenerateRequest(BaseModel):
-    report_type: Literal["daily", "weekly", "monthly"] = "daily"
-    use_llm: bool = False
+    report_type: Literal["smart", "daily", "weekly", "monthly"] = "smart"
+    use_llm: bool = True
     date: str | None = None
+    record_limit: int = Field(default=600, ge=1, le=1000)
 
 
 class ReportOut(BaseModel):
@@ -182,6 +183,7 @@ class NotificationOut(BaseModel):
     title: str
     content: str
     is_read: bool
+    related_report_id: int | None = None
     created_at: str
     read_at: str | None
 

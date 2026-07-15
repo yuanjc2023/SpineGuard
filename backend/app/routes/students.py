@@ -6,10 +6,10 @@ from sqlalchemy.orm import Session
 
 from ..config import API_PREFIX
 from ..db import get_db
-from ..models import Student, User, UserStudentLink
+from ..models import Report, Student, User, UserStudentLink
 from ..schemas import DailyStatOut, ReportGenerateRequest, StudentCreate, StudentOut
 from ..services.auth import get_current_user, new_public_id
-from ..services.reports import generate_report, list_reports, report_to_dict
+from ..services.reports import generate_latest_smart_report, generate_report, list_reports, report_to_dict
 from ..services.risk import assess_risk, risk_to_dict
 from ..services.stats import calculate_daily_stat, calculate_weekly_stat
 from ..services.telemetry import get_student_history, get_student_latest
@@ -158,6 +158,22 @@ def student_reports(
     return {"ok": True, "items": [report_to_dict(report) for report in reports], "total": len(reports)}
 
 
+@router.get("/{student_id}/reports/{report_id}")
+def student_report_detail(
+    student_id: str,
+    report_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    ensure_student_access(student_id, current_user, db)
+    report = db.scalar(
+        select(Report).where(Report.id == report_id, Report.student_id == student_id)
+    )
+    if report is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+    return {"ok": True, "data": report_to_dict(report)}
+
+
 @router.post("/{student_id}/reports/generate")
 def student_report_generate(
     student_id: str,
@@ -166,6 +182,12 @@ def student_report_generate(
     db: Session = Depends(get_db),
 ):
     ensure_student_access(student_id, current_user, db)
+    if data.report_type == "smart":
+        try:
+            report = generate_latest_smart_report(student_id, data.record_limit, db)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No posture records available") from exc
+        return {"ok": True, "data": report_to_dict(report)}
     end_date = date.fromisoformat(data.date) if data.date else date.today()
     report = generate_report(student_id, data.report_type, end_date, data.use_llm, db)
     return {"ok": True, "data": report_to_dict(report)}

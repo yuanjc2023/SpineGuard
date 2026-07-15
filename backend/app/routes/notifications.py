@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from ..config import API_PREFIX
 from ..db import get_db
-from ..models import Notification, User, UserStudentLink, utc_now
+from ..models import Notification, ScheduledReportRun, User, UserStudentLink, utc_now
 from ..schemas import NotificationCreate, NotificationOut
 from ..services.auth import get_current_user, new_public_id, require_roles
 
@@ -33,7 +33,7 @@ def list_notifications(
         stmt = stmt.where(Notification.read_at.is_(None))
 
     notifications = list(db.scalars(stmt.order_by(Notification.created_at.desc(), Notification.id.desc())))
-    return {"ok": True, "items": [notification_out(item).model_dump() for item in notifications], "total": len(notifications)}
+    return {"ok": True, "items": [notification_out(item, db).model_dump() for item in notifications], "total": len(notifications)}
 
 
 @router.post("")
@@ -53,7 +53,7 @@ def create_notification(
     db.add(notification)
     db.commit()
     db.refresh(notification)
-    return {"ok": True, "data": notification_out(notification).model_dump()}
+    return {"ok": True, "data": notification_out(notification, db).model_dump()}
 
 
 @router.post("/{notification_id}/read")
@@ -70,7 +70,7 @@ def mark_notification_read(
         notification.read_at = utc_now()
         db.commit()
         db.refresh(notification)
-    return {"ok": True, "data": notification_out(notification).model_dump()}
+    return {"ok": True, "data": notification_out(notification, db).model_dump()}
 
 
 def ensure_notification_access(notification: Notification, current_user: User, db: Session) -> None:
@@ -92,7 +92,12 @@ def ensure_notification_access(notification: Notification, current_user: User, d
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
 
 
-def notification_out(notification: Notification) -> NotificationOut:
+def notification_out(notification: Notification, db: Session) -> NotificationOut:
+    scheduled_run = db.scalar(
+        select(ScheduledReportRun).where(
+            ScheduledReportRun.notification_id == notification.notification_id
+        )
+    )
     return NotificationOut(
         notification_id=notification.notification_id,
         user_id=notification.user_id,
@@ -101,6 +106,7 @@ def notification_out(notification: Notification) -> NotificationOut:
         title=notification.title,
         content=notification.content,
         is_read=notification.read_at is not None,
+        related_report_id=scheduled_run.report_id if scheduled_run else None,
         created_at=notification.created_at.isoformat(),
         read_at=notification.read_at.isoformat() if notification.read_at else None,
     )
