@@ -1,5 +1,5 @@
 {
-  "protocol_version": 1,
+  "protocol_version": 2,
   "device_id": "SG-0001",
   "session_id": "S-MOCK-001",
   "seq": 1,
@@ -12,6 +12,13 @@
     "front": 430,
     "back": 620,
     "center": 760
+  },
+  "raw_pressure": {
+    "left": 2148,
+    "right": 2096,
+    "front": 1761,
+    "back": 2540,
+    "center": 3112
   },
   "pressure_features": {
     "total_pressure": 2840,

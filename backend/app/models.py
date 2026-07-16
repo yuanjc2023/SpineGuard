@@ -92,6 +92,12 @@ class PostureRecord(Base):
     pressure_back: Mapped[int] = mapped_column(Integer)
     pressure_center: Mapped[int] = mapped_column(Integer)
 
+    raw_pressure_left: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    raw_pressure_right: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    raw_pressure_front: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    raw_pressure_back: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    raw_pressure_center: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     total_pressure: Mapped[int] = mapped_column(Integer)
     left_right_diff: Mapped[int] = mapped_column(Integer)
     front_back_diff: Mapped[int] = mapped_column(Integer)

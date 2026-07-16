@@ -64,7 +64,7 @@ def login_headers(client: TestClient) -> dict:
 
 def payload(seq: int, timestamp_ms: int, posture: str = "normal", session_id: str = "GAME-S1") -> dict:
     return {
-        "protocol_version": 1,
+        "protocol_version": 2,
         "device_id": "SG-GAME-001",
         "session_id": session_id,
         "seq": seq,
@@ -72,6 +72,7 @@ def payload(seq: int, timestamp_ms: int, posture: str = "normal", session_id: st
         "posture": posture,
         "confidence": 0.95,
         "pressure": {"left": 500, "right": 510, "front": 400, "back": 600, "center": 700},
+        "raw_pressure": {"left": 2048, "right": 2006, "front": 2457, "back": 1638, "center": 1228},
         "pressure_features": {
             "total_pressure": 2710,
             "left_right_diff": -10,

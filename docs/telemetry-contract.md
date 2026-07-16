@@ -24,14 +24,15 @@ Content-Type: application/json
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `protocol_version` | integer | 是 | 协议版本，当前固定为 `1`。 |
+| `protocol_version` | integer | 是 | 协议版本，当前固定为 `2`。 |
 | `device_id` | string | 是 | 设备编号，例如 `SG-0001`。 |
 | `session_id` | string | 是 | 本次就坐或演示会话编号。 |
 | `seq` | integer | 是 | 设备端递增序号，用于排查丢包或乱序。 |
 | `timestamp_ms` | integer | 是 | 设备端时间戳，毫秒。 |
 | `posture` | enum | 是 | 当前坐姿分类。 |
 | `confidence` | number | 是 | 坐姿识别置信度，范围 `0~1`。 |
-| `pressure` | object | 是 | 五点压力值，范围 `0~1000`。 |
+| `pressure` | object | 是 | 五点归一化压力值，范围 `0~1000`。 |
+| `raw_pressure` | object | 是 | 五个传感器 ADC 原始值，范围 `0~4095`。 |
 | `pressure_features` | object | 是 | 由压力计算出的特征指数。 |
 | `imu` | object | 是 | 姿态辅助数据；没有真实 IMU 时填 `0`。 |
 | `posture_duration_s` | integer | 是 | 当前坐姿连续持续秒数。 |
@@ -82,6 +83,18 @@ neural_network
 
 范围统一为 `0~1000`。数值越大表示压力越大。
 
+`raw_pressure` 表示同一次采样中归一化之前的 ADC 原始值：
+
+| 字段 | 说明 |
+| --- | --- |
+| `left` | 左侧传感器原始值 |
+| `right` | 右侧传感器原始值 |
+| `front` | 前侧传感器原始值 |
+| `back` | 后侧传感器原始值 |
+| `center` | 中央传感器原始值 |
+
+当前 ESP32-S3 ADC 为 12 位，范围统一为 `0~4095`。原始值用于传感器标定、故障排查和算法复核；坐姿判断和已有图表继续使用归一化后的 `pressure`。数据库旧历史记录没有原始值时，查询接口返回 `raw_pressure=null`。
+
 ## 压力特征
 
 `pressure_features` 用于后端统计、风险提示和图表展示。
@@ -112,4 +125,3 @@ neural_network
 ## 示例
 
 完整示例见 `shared/example.json`。
-

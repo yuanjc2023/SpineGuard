@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "SpineGuard Telemetry V1",
+  "title": "SpineGuard Telemetry V2",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -12,6 +12,7 @@
     "posture",
     "confidence",
     "pressure",
+    "raw_pressure",
     "pressure_features",
     "imu",
     "posture_duration_s",
@@ -26,7 +27,7 @@
   ],
   "properties": {
     "protocol_version": {
-      "const": 1
+      "const": 2
     },
     "device_id": {
       "type": "string"
@@ -93,6 +94,44 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 1000
+        }
+      }
+    },
+    "raw_pressure": {
+      "type": "object",
+      "required": [
+        "left",
+        "right",
+        "front",
+        "back",
+        "center"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "left": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4095
+        },
+        "right": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4095
+        },
+        "front": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4095
+        },
+        "back": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4095
+        },
+        "center": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4095
         }
       }
     },

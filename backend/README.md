@@ -229,6 +229,8 @@ Header: X-Device-Token: dev-token
 
 请求体遵守 `shared/schema.json` 和 `docs/telemetry-contract.md`。
 
+当前使用遥测协议 V2。`pressure` 保存五点归一化压力（0~1000），`raw_pressure` 保存同次采样的五点 ADC 原始压力（0~4095）。两组值都会写入 `posture_records`；升级前的旧记录没有原始压力，查询时返回 `raw_pressure: null`。
+
 当前逻辑：
 
 1. 校验 `X-Device-Token`。

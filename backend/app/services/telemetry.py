@@ -165,6 +165,11 @@ def to_posture_record(data: Telemetry, student_id: str | None = None) -> Posture
         pressure_front=data.pressure.front,
         pressure_back=data.pressure.back,
         pressure_center=data.pressure.center,
+        raw_pressure_left=data.raw_pressure.left,
+        raw_pressure_right=data.raw_pressure.right,
+        raw_pressure_front=data.raw_pressure.front,
+        raw_pressure_back=data.raw_pressure.back,
+        raw_pressure_center=data.raw_pressure.center,
         total_pressure=data.pressure_features.total_pressure,
         left_right_diff=data.pressure_features.left_right_diff,
         front_back_diff=data.pressure_features.front_back_diff,
@@ -231,7 +236,7 @@ def parse_time_filter(value: str | None, end_of_day: bool) -> int | None:
 
 def record_to_dict(record: PostureRecord) -> dict:
     return {
-        "protocol_version": 1,
+        "protocol_version": 2 if record.raw_pressure_left is not None else 1,
         "device_id": record.device_id,
         "student_id": record.student_id,
         "session_id": record.session_id,
@@ -246,6 +251,16 @@ def record_to_dict(record: PostureRecord) -> dict:
             "back": record.pressure_back,
             "center": record.pressure_center,
         },
+        "raw_pressure": (
+            {
+                "left": record.raw_pressure_left,
+                "right": record.raw_pressure_right,
+                "front": record.raw_pressure_front,
+                "back": record.raw_pressure_back,
+                "center": record.raw_pressure_center,
+            }
+            if record.raw_pressure_left is not None else None
+        ),
         "pressure_features": {
             "total_pressure": record.total_pressure,
             "left_right_diff": record.left_right_diff,

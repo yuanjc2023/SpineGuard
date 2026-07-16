@@ -48,9 +48,10 @@ def telemetry_payload(
     asymmetry_index: float = 0.08,
 ):
     return {
-        "protocol_version":1,"device_id":device_id,"session_id":"T1","seq":seq,
+        "protocol_version":2,"device_id":device_id,"session_id":"T1","seq":seq,
         "timestamp_ms":timestamp_ms if timestamp_ms is not None else seq,"posture":posture,"confidence":0.95,
         "pressure":{"left":500,"right":510,"front":400,"back":600,"center":700},
+        "raw_pressure":{"left":2048,"right":2006,"front":2457,"back":1638,"center":1228},
         "pressure_features":{
             "total_pressure":2710,"left_right_diff":-10,"front_back_diff":-200,
             "center_x":-0.01,"center_y":-0.16,"asymmetry_index":asymmetry_index
@@ -74,6 +75,7 @@ def test_round_trip():
         assert r.json()["data"]["posture"] == "normal"
         r = client.get("/api/v1/devices/SG-0001/history")
         assert r.json()["items"][0]["pressure_features"]["total_pressure"] == 2710
+        assert r.json()["items"][0]["raw_pressure"]["left"] == 2048
 
 
 def test_database_tables_created():

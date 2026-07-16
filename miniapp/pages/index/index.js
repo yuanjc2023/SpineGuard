@@ -3,6 +3,7 @@ Page({
   data:{
     posture:"等待数据",confidence:0,
     pressure:{left:0,right:0,front:0,back:0,center:0},
+    rawPressure:{left:null,right:null,front:null,back:null,center:null},
     pressureFeatures:{total_pressure:0,left_right_diff:0,front_back_diff:0,center_x:0,center_y:0,asymmetry_index:0},
     reminderCount:0,batteryLevel:0,connected:false
   },
@@ -16,6 +17,7 @@ Page({
         posture:labels[f.posture]||"未知",
         confidence:Math.round(f.confidence*100),
         pressure:f.pressure,
+        rawPressure:f.raw_pressure||{left:null,right:null,front:null,back:null,center:null},
         pressureFeatures:f.pressure_features,
         reminderCount:f.reminder_count,
         batteryLevel:f.battery_level,

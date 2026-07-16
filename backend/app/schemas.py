@@ -21,6 +21,14 @@ class Pressure(BaseModel):
     center: int = Field(ge=0, le=1000)
 
 
+class RawPressure(BaseModel):
+    left: int = Field(ge=0, le=4095)
+    right: int = Field(ge=0, le=4095)
+    front: int = Field(ge=0, le=4095)
+    back: int = Field(ge=0, le=4095)
+    center: int = Field(ge=0, le=4095)
+
+
 class PressureFeatures(BaseModel):
     total_pressure: int = Field(ge=0, le=5000)
     left_right_diff: int = Field(ge=-1000, le=1000)
@@ -37,7 +45,7 @@ class Imu(BaseModel):
 
 
 class Telemetry(BaseModel):
-    protocol_version: Literal[1] = 1
+    protocol_version: Literal[2] = 2
     device_id: str
     session_id: str
     seq: int = Field(ge=0)
@@ -45,6 +53,7 @@ class Telemetry(BaseModel):
     posture: Posture
     confidence: float = Field(ge=0, le=1)
     pressure: Pressure
+    raw_pressure: RawPressure
     pressure_features: PressureFeatures
     imu: Imu
     posture_duration_s: int = Field(ge=0)

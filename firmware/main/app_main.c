@@ -58,6 +58,14 @@ typedef struct {
 } pressure_values_t;
 
 typedef struct {
+    int left;
+    int right;
+    int front;
+    int back;
+    int center;
+} raw_pressure_values_t;
+
+typedef struct {
     int total_pressure;
     int left_right_diff;
     int front_back_diff;
@@ -400,6 +408,13 @@ static void spineguard_task(void *arg)
             .back = normalize_fsr(raw[3], &s_fsr[3]),
             .center = normalize_fsr(raw[4], &s_fsr[4]),
         };
+        raw_pressure_values_t raw_pressure = {
+            .left = raw[0],
+            .right = raw[1],
+            .front = raw[2],
+            .back = raw[3],
+            .center = raw[4],
+        };
         ESP_LOGD(TAG, "FSR raw: left=%d right=%d front=%d back=%d center=%d",
             raw[0], raw[1], raw[2], raw[3], raw[4]);
 
@@ -456,19 +471,21 @@ static void spineguard_task(void *arg)
                 (uint64_t)(now_us - sitting_started_us) / 1000000;
             int written = snprintf(
                 s_json_buffer, sizeof(s_json_buffer),
-                "{\"protocol_version\":1,\"device_id\":\"%s\",\"session_id\":\"%s\","
+                "{\"protocol_version\":2,\"device_id\":\"%s\",\"session_id\":\"%s\","
                 "\"seq\":%" PRIu32 ",\"timestamp_ms\":%" PRId64 ",\"posture\":\"%s\","
                 "\"confidence\":%.4f,\"pressure\":{\"left\":%d,\"right\":%d,\"front\":%d,"
+                "\"back\":%d,\"center\":%d},\"raw_pressure\":{\"left\":%d,\"right\":%d,\"front\":%d,"
                 "\"back\":%d,\"center\":%d},\"pressure_features\":{\"total_pressure\":%d,"
                 "\"left_right_diff\":%d,\"front_back_diff\":%d,\"center_x\":%.6f,\"center_y\":%.6f,"
                 "\"asymmetry_index\":%.6f},\"imu\":{\"tilt_x\":0.0,\"tilt_y\":0.0,\"shake_level\":0.0},"
                 "\"posture_duration_s\":%" PRIu64 ",\"sitting_duration_s\":%" PRIu64 ","
                 "\"vibration_enabled\":%s,\"warning_active\":%s,\"reminder_count\":%" PRIu32 ","
                 "\"battery_level\":100,\"recognition_source\":\"rule\",\"model_version\":\"rule-v0.2\","
-                "\"firmware_version\":\"0.2.0\"}",
+                "\"firmware_version\":\"0.3.0\"}",
                 CONFIG_SPINEGUARD_DEVICE_ID, s_session_id, candidate_seq, unix_timestamp_ms(), posture,
                 rule_confidence(posture, &features), pressure.left, pressure.right, pressure.front,
-                pressure.back, pressure.center, features.total_pressure, features.left_right_diff,
+                pressure.back, pressure.center, raw_pressure.left, raw_pressure.right, raw_pressure.front,
+                raw_pressure.back, raw_pressure.center, features.total_pressure, features.left_right_diff,
                 features.front_back_diff, features.center_x, features.center_y, features.asymmetry_index,
                 posture_duration_s, sitting_duration_s,
                 SPINEGUARD_VIBRATION_JSON,

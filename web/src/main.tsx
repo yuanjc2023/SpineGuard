@@ -5,6 +5,32 @@ import "./style.css";
 type User = {user_id:string; username:string; role:string};
 type Student = {student_id:string; display_code:string; school_id:string|null; class_id:string|null};
 type Device = {device_id:string; online_status:string; battery_level:number|null; firmware_version:string; model_version:string};
+type PressureValues = {left:number; right:number; front:number; back:number; center:number};
+type TelemetryPayload = {
+  protocol_version:2;
+  device_id:string;
+  session_id:string;
+  seq:number;
+  timestamp_ms:number;
+  posture:string;
+  confidence:number;
+  pressure:PressureValues;
+  raw_pressure:PressureValues;
+  pressure_features:{
+    total_pressure:number; left_right_diff:number; front_back_diff:number;
+    center_x:number; center_y:number; asymmetry_index:number;
+  };
+  imu:{tilt_x:number; tilt_y:number; shake_level:number};
+  posture_duration_s:number;
+  sitting_duration_s:number;
+  vibration_enabled:boolean;
+  warning_active:boolean;
+  reminder_count:number;
+  battery_level:number;
+  recognition_source:"mock";
+  model_version:string;
+  firmware_version:string;
+};
 
 const API = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000/api/v1";
 const postureNames:Record<string,string> = {
@@ -151,7 +177,7 @@ function App(){
     setSeq(seq + 1);
   }
 
-  function buildTelemetry(){
+  function buildTelemetry():TelemetryPayload{
     const left = randomInt(360, 760);
     const right = randomInt(360, 760);
     const front = randomInt(300, 680);
@@ -159,7 +185,7 @@ function App(){
     const center = randomInt(420, 820);
     const total = left + right + front + back + center;
     return {
-      protocol_version:1,
+      protocol_version:2,
       device_id:deviceId,
       session_id:"WEB-DEMO",
       seq,
@@ -167,6 +193,13 @@ function App(){
       posture,
       confidence:0.92,
       pressure:{left,right,front,back,center},
+      raw_pressure:{
+        left:rawFromNormalized(left),
+        right:rawFromNormalized(right),
+        front:rawFromNormalized(front),
+        back:rawFromNormalized(back),
+        center:rawFromNormalized(center)
+      },
       pressure_features:{
         total_pressure:total,
         left_right_diff:left-right,
@@ -184,7 +217,7 @@ function App(){
       battery_level:88,
       recognition_source:"mock",
       model_version:"mock-web-v0.1",
-      firmware_version:"0.1.0"
+      firmware_version:"mock-web-v0.2"
     };
   }
 
@@ -442,5 +475,6 @@ function Data(props:{title:string; data:any}){
 
 function randomInt(min:number, max:number){ return Math.floor(Math.random()*(max-min+1))+min; }
 function round(value:number){ return Math.round(value*1000)/1000; }
+function rawFromNormalized(value:number){ return Math.max(0, Math.min(4095, Math.round(4095-value*4.095))); }
 
 createRoot(document.getElementById("root")!).render(<App/>);

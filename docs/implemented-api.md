@@ -379,6 +379,8 @@ shared/schema.json
 docs/telemetry-contract.md
 ```
 
+当前遥测协议为 V2：`pressure` 是 0~1000 的五点归一化压力，`raw_pressure` 是同次采样的 0~4095 五点 ADC 原始值。设备上传时两组字段均为必填。查询旧历史记录时，由于旧数据未保存原始值，响应中的 `raw_pressure` 为 `null`。
+
 当前处理逻辑：
 
 1. 校验设备 Token

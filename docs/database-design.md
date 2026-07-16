@@ -109,11 +109,16 @@ users
 | `recorded_at` | datetime | 后端换算后的记录时间 |
 | `posture` | enum | 坐姿分类 |
 | `confidence` | decimal | 置信度 |
-| `pressure_left` | integer | 左压力 |
-| `pressure_right` | integer | 右压力 |
-| `pressure_front` | integer | 前压力 |
-| `pressure_back` | integer | 后压力 |
-| `pressure_center` | integer | 中央压力 |
+| `pressure_left` | integer | 左侧归一化压力，0~1000 |
+| `pressure_right` | integer | 右侧归一化压力，0~1000 |
+| `pressure_front` | integer | 前侧归一化压力，0~1000 |
+| `pressure_back` | integer | 后侧归一化压力，0~1000 |
+| `pressure_center` | integer | 中央归一化压力，0~1000 |
+| `raw_pressure_left` | integer/null | 左侧传感器 ADC 原始值，0~4095 |
+| `raw_pressure_right` | integer/null | 右侧传感器 ADC 原始值，0~4095 |
+| `raw_pressure_front` | integer/null | 前侧传感器 ADC 原始值，0~4095 |
+| `raw_pressure_back` | integer/null | 后侧传感器 ADC 原始值，0~4095 |
+| `raw_pressure_center` | integer/null | 中央传感器 ADC 原始值，0~4095 |
 | `total_pressure` | integer | 总压力 |
 | `left_right_diff` | integer | 左右压力差 |
 | `front_back_diff` | integer | 前后压力差 |
