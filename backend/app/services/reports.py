@@ -1,4 +1,5 @@
 import json
+import logging
 from urllib import request
 from urllib.error import HTTPError, URLError
 from datetime import date, datetime, timedelta, timezone
@@ -6,11 +7,21 @@ from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..config import LLM_API_BASE, LLM_API_KEY, LLM_MODEL, LLM_TIMEOUT_SECONDS
+from ..config import (
+    LLM_API_BASE,
+    LLM_API_KEY,
+    LLM_MODEL,
+    LLM_TIMEOUT_SECONDS,
+    LLM_MAX_TOKENS,
+    LLM_ENABLE_THINKING,
+)
 from ..models import Report
 from .report_analytics import CHINA_TZ, latest_records, period_records, summarize_records
 from .risk import assess_risk, risk_to_dict
 from .stats import calculate_daily_stat
+
+
+logger = logging.getLogger(__name__)
 
 
 def generate_report(
@@ -210,6 +221,8 @@ def generate_llm_report(
             },
         ],
         "temperature": 0.3,
+        "max_tokens": LLM_MAX_TOKENS,
+        "enable_thinking": LLM_ENABLE_THINKING,
     }
 
     try:
@@ -225,7 +238,9 @@ def generate_llm_report(
         with request.urlopen(req, timeout=LLM_TIMEOUT_SECONDS) as response:
             data = json.loads(response.read().decode("utf-8"))
     except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
-        return llm_fallback(fallback_data, f"真实 LLM API 调用失败：{exc.__class__.__name__}")
+        reason = llm_error_reason(exc)
+        logger.warning("LLM report request failed: %s", reason)
+        return llm_fallback(fallback_data, f"真实 LLM API 调用失败：{reason}")
 
     content = extract_llm_content(data)
     if not content:
@@ -248,6 +263,14 @@ def llm_chat_url() -> str:
     if base.endswith("/chat/completions"):
         return base
     return f"{base}/chat/completions"
+
+
+def llm_error_reason(exc: Exception) -> str:
+    if isinstance(exc, HTTPError):
+        return f"HTTP {exc.code}"
+    if isinstance(exc, TimeoutError):
+        return f"TimeoutError（超过 {LLM_TIMEOUT_SECONDS:g} 秒）"
+    return exc.__class__.__name__
 
 
 def extract_llm_content(data: dict) -> str:

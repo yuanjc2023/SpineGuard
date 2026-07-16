@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 from io import BytesIO
@@ -518,6 +519,8 @@ def test_llm_report_uses_real_api_shape(monkeypatch):
     monkeypatch.setattr("app.services.reports.LLM_API_KEY", "test-key")
     monkeypatch.setattr("app.services.reports.LLM_API_BASE", "https://llm.example/v1")
     monkeypatch.setattr("app.services.reports.LLM_MODEL", "test-model")
+    monkeypatch.setattr("app.services.reports.LLM_MAX_TOKENS", 1200)
+    monkeypatch.setattr("app.services.reports.LLM_ENABLE_THINKING", False)
 
     class FakeResponse:
         def __enter__(self):
@@ -532,6 +535,9 @@ def test_llm_report_uses_real_api_shape(monkeypatch):
     def fake_urlopen(req, timeout):
         assert req.full_url == "https://llm.example/v1/chat/completions"
         assert req.headers["Authorization"] == "Bearer test-key"
+        request_body = json.loads(req.data.decode("utf-8"))
+        assert request_body["max_tokens"] == 1200
+        assert request_body["enable_thinking"] is False
         return FakeResponse()
 
     monkeypatch.setattr("app.services.reports.request.urlopen", fake_urlopen)

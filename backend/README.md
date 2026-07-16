@@ -110,7 +110,9 @@ ACCESS_TOKEN_EXPIRE_MINUTES=1440
 LLM_API_KEY=填入你的LLM_API_KEY
 LLM_API_BASE=填入你的LLM_API_BASE
 LLM_MODEL=填入你的模型名称
-LLM_TIMEOUT_SECONDS=20
+LLM_TIMEOUT_SECONDS=60
+LLM_MAX_TOKENS=1200
+LLM_ENABLE_THINKING=false
 AUTO_REPORT_ENABLED=true
 AUTO_REPORT_USE_LLM=true
 AUTO_REPORT_CATCH_UP_DAYS=7
@@ -343,7 +345,9 @@ suggestion: 行为建议和筛查参考
 LLM_API_KEY=your-local-secret
 LLM_API_BASE=https://example.com/v1
 LLM_MODEL=your-model-name
-LLM_TIMEOUT_SECONDS=20
+LLM_TIMEOUT_SECONDS=60
+LLM_MAX_TOKENS=1200
+LLM_ENABLE_THINKING=false
 ```
 
 不要把真实密钥、Token、学生姓名、手机号或真实班级信息提交到 GitHub。发送给模型的数据只包含匿名 `student_id` 和统计摘要。若 LLM 配置缺失、服务超时或返回格式不兼容，后端会返回 `generated_by=llm_fallback` 的规则兜底报告。

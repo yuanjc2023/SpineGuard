@@ -164,6 +164,17 @@ AUTO_REPORT_CATCH_UP_DAYS=7
 
 当 `AUTO_REPORT_USE_LLM=false` 时，自动报告使用规则模板；用户手动智能报告仍调用 LLM。
 
+对于默认启用思考模式的模型，推荐使用以下配置，避免模型在返回正文前超过请求超时：
+
+```text
+LLM_API_BASE=https://api.siliconflow.cn/v1
+LLM_TIMEOUT_SECONDS=60
+LLM_MAX_TOKENS=1200
+LLM_ENABLE_THINKING=false
+```
+
+`LLM_ENABLE_THINKING=false` 会让兼容接口直接生成报告正文；`LLM_MAX_TOKENS` 限制最大输出长度。修改 `.env` 后需要重新启动后端进程。
+
 ## 4. 信息中心未读和已读
 
 自动报告成功后，后端创建：
