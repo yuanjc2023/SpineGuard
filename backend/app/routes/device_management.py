@@ -10,6 +10,7 @@ from ..services.auth import get_current_user, hash_secret, new_public_id, requir
 from ..services.device_management import (
     authenticate_device,
     command_payload,
+    complete_pending_pairing,
     device_config_payload,
     ensure_device_access,
 )
@@ -52,8 +53,15 @@ def register_device(
         device.model_version = data.model_version
         device.online_status = "registered"
 
+    pairing = complete_pending_pairing(data.device_id, data.claim_code, db)
     db.commit()
-    return {"ok": True, "device_id": data.device_id, "created": created}
+    return {
+        "ok": True,
+        "device_id": data.device_id,
+        "created": created,
+        "pairing_status": "completed" if pairing is not None else None,
+        "pairing_id": pairing.pairing_id if pairing is not None else None,
+    }
 
 
 @router.get("/device/config/{device_id}")

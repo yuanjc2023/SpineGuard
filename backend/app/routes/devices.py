@@ -1,15 +1,31 @@
+from datetime import timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..config import API_PREFIX
 from ..db import get_db
-from ..models import Device, DeviceBinding, Student, User, UserStudentLink, utc_now
-from ..schemas import DeviceBindRequest, DeviceBindingOut, DeviceCreate, DeviceOut
-from ..services.auth import get_current_user, hash_secret, require_roles, verify_secret
-from ..services.device_management import sensor_status
+from ..models import Device, DeviceBinding, DevicePairingRequest, User, UserStudentLink, utc_now
+from ..schemas import (
+    DeviceBindRequest,
+    DeviceBindingOut,
+    DeviceCreate,
+    DeviceOut,
+    DevicePairingOut,
+    DevicePairRequest,
+)
+from ..services.auth import get_current_user, hash_secret, new_public_id, require_roles, verify_secret
+from ..services.device_management import (
+    activate_device_binding,
+    ensure_student_binding_access,
+    expire_pairing_request,
+    queue_claim_code_rotation,
+    sensor_status,
+)
 
 router = APIRouter(prefix=f"{API_PREFIX}/devices", tags=["devices"])
+PAIRING_TTL_MINUTES = 10
 
 
 @router.get("")
@@ -65,14 +81,111 @@ def device_status(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    device = db.scalar(select(Device).where(Device.device_id == device_id))
-    if device is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
-    if device.claim_code_hash and (
-        data.bind_code is None or not verify_secret(data.bind_code, device.claim_code_hash)
-    ):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid bind code")
+    device = ensure_device_access(device_id, current_user, db)
     return {"ok": True, "data": device_out(device).model_dump()}
+
+
+@router.post("/pair")
+def pair_device(
+    data: DevicePairRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    ensure_student_binding_access(data.student_id, current_user, db)
+    now = utc_now()
+    pending = list(
+        db.scalars(
+            select(DevicePairingRequest).where(
+                DevicePairingRequest.device_id == data.device_id,
+                DevicePairingRequest.status == "pending",
+            )
+        )
+    )
+    for item in pending:
+        expire_pairing_request(item)
+        if item.status == "pending" and item.requested_by_user_id != current_user.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Device already has a pending pairing request",
+            )
+        if item.status == "pending":
+            item.status = "cancelled"
+            item.error_message = "Replaced by a newer pairing request"
+
+    pairing = DevicePairingRequest(
+        pairing_id=new_public_id("PAIR"),
+        device_id=data.device_id,
+        student_id=data.student_id,
+        requested_by_user_id=current_user.user_id,
+        claim_code_hash=hash_secret(data.claim_code),
+        status="pending",
+        expires_at=now + timedelta(minutes=PAIRING_TTL_MINUTES),
+    )
+    db.add(pairing)
+
+    device = db.scalar(select(Device).where(Device.device_id == data.device_id))
+    if device is not None and device.claim_code_hash is not None:
+        if not verify_secret(data.claim_code, device.claim_code_hash):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid claim code")
+        binding = activate_device_binding(
+            data.device_id,
+            data.student_id,
+            current_user.user_id,
+            db,
+        )
+        pairing.status = "completed"
+        pairing.completed_at = now
+        pairing.binding_id = binding.id
+        queue_claim_code_rotation(data.device_id, current_user.user_id, db)
+
+    db.commit()
+    db.refresh(pairing)
+    return {"ok": True, "data": pairing_out(pairing, db).model_dump()}
+
+
+@router.get("/pairings/{pairing_id}")
+def get_pairing_status(
+    pairing_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    pairing = db.scalar(
+        select(DevicePairingRequest).where(DevicePairingRequest.pairing_id == pairing_id)
+    )
+    if pairing is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pairing request not found")
+    if pairing.requested_by_user_id != current_user.user_id and current_user.role not in {
+        "school_admin", "admin"
+    }:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+    old_status = pairing.status
+    expire_pairing_request(pairing)
+    if pairing.status != old_status:
+        db.commit()
+        db.refresh(pairing)
+    return {"ok": True, "data": pairing_out(pairing, db).model_dump()}
+
+
+@router.delete("/pairings/{pairing_id}")
+def cancel_pairing(
+    pairing_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    pairing = db.scalar(
+        select(DevicePairingRequest).where(DevicePairingRequest.pairing_id == pairing_id)
+    )
+    if pairing is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pairing request not found")
+    if pairing.requested_by_user_id != current_user.user_id and current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+    expire_pairing_request(pairing)
+    if pairing.status == "pending":
+        pairing.status = "cancelled"
+        pairing.error_message = "Cancelled by user"
+        db.commit()
+        db.refresh(pairing)
+    return {"ok": True, "data": pairing_out(pairing, db).model_dump()}
 
 
 @router.post("/bind")
@@ -84,66 +197,17 @@ def bind_device(
     device = db.scalar(select(Device).where(Device.device_id == data.device_id))
     if device is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
-
-    student = db.scalar(select(Student).where(Student.student_id == data.student_id))
-    if student is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
-
-    if current_user.role == "parent":
-        link = db.scalar(
-            select(UserStudentLink).where(
-                UserStudentLink.user_id == current_user.user_id,
-                UserStudentLink.student_id == data.student_id,
-            )
-        )
-        if link is None:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
-
-    existing = db.scalar(
-        select(DeviceBinding).where(
-            DeviceBinding.device_id == data.device_id,
-            DeviceBinding.student_id == data.student_id,
-            DeviceBinding.active.is_(True),
-        )
+    ensure_student_binding_access(data.student_id, current_user, db)
+    if device.claim_code_hash is not None and (
+        data.bind_code is None or not verify_secret(data.bind_code, device.claim_code_hash)
+    ):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid bind code")
+    binding = activate_device_binding(
+        data.device_id,
+        data.student_id,
+        current_user.user_id,
+        db,
     )
-    if existing is not None:
-        conflicting = db.scalars(
-            select(DeviceBinding).where(
-                DeviceBinding.student_id == data.student_id,
-                DeviceBinding.device_id != data.device_id,
-                DeviceBinding.active.is_(True),
-            )
-        )
-        changed = False
-        for old in conflicting:
-            old.active = False
-            old.unbound_at = utc_now()
-            changed = True
-        if changed:
-            db.commit()
-            db.refresh(existing)
-        return {"ok": True, "data": binding_out(existing).model_dump()}
-
-    old_bindings = db.scalars(
-        select(DeviceBinding).where(
-            (
-                (DeviceBinding.device_id == data.device_id)
-                | (DeviceBinding.student_id == data.student_id)
-            ),
-            DeviceBinding.active.is_(True),
-        )
-    )
-    for old in old_bindings:
-        old.active = False
-        old.unbound_at = utc_now()
-
-    binding = DeviceBinding(
-        device_id=data.device_id,
-        student_id=data.student_id,
-        bound_by_user_id=current_user.user_id,
-        active=True,
-    )
-    db.add(binding)
     db.commit()
     db.refresh(binding)
     return {"ok": True, "data": binding_out(binding).model_dump()}
@@ -172,4 +236,25 @@ def binding_out(binding: DeviceBinding) -> DeviceBindingOut:
         student_id=binding.student_id,
         bound_by_user_id=binding.bound_by_user_id,
         active=binding.active,
+    )
+
+
+def pairing_out(pairing: DevicePairingRequest, db: Session) -> DevicePairingOut:
+    binding = db.get(DeviceBinding, pairing.binding_id) if pairing.binding_id is not None else None
+    messages = {
+        "pending": "Waiting for the device to connect and register",
+        "completed": "Device binding completed",
+        "expired": "Pairing request expired; please reconnect to the device hotspot",
+        "failed": pairing.error_message or "Device binding failed",
+        "cancelled": "Pairing request cancelled",
+    }
+    return DevicePairingOut(
+        pairing_id=pairing.pairing_id,
+        device_id=pairing.device_id,
+        student_id=pairing.student_id,
+        status=pairing.status,
+        expires_at=pairing.expires_at.isoformat(),
+        completed_at=pairing.completed_at.isoformat() if pairing.completed_at else None,
+        binding=binding_out(binding) if binding else None,
+        message=messages[pairing.status],
     )

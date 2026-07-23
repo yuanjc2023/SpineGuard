@@ -108,6 +108,16 @@ GET /api/v1/students
 POST /api/v1/devices/bind
 ```
 
+SoftAP 配网与新设备首次绑定推荐使用：
+
+```text
+POST   /api/v1/devices/pair
+GET    /api/v1/devices/pairings/{pairing_id}
+DELETE /api/v1/devices/pairings/{pairing_id}
+```
+
+`pair` 接收 `device_id`、`student_id` 和硬件本地页面返回的六位 `claim_code`。设备未上线时允许返回 `pending`，设备登记后由后端自动完成绑定；申请应短期有效，且绑定码不得明文长期保存。
+
 请求：
 
 ```json

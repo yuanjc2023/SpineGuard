@@ -87,6 +87,22 @@ class DeviceBinding(Base):
     unbound_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class DevicePairingRequest(Base, TimestampMixin):
+    __tablename__ = "device_pairing_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    pairing_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    device_id: Mapped[str] = mapped_column(String(64), index=True)
+    student_id: Mapped[str] = mapped_column(String(64), index=True)
+    requested_by_user_id: Mapped[str] = mapped_column(String(64), index=True)
+    claim_code_hash: Mapped[str] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(32), default="pending", index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    binding_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+
 class PostureRecord(Base):
     __tablename__ = "posture_records"
 

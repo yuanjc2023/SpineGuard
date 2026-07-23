@@ -6,6 +6,7 @@
 
 - 接收 ESP32-S3 或模拟设备上传的遥测数据。
 - 支持更新后固件的设备幂等登记、逐设备密钥鉴权和六位绑定码。
+- 支持 SoftAP 配网后的设备认领：设备未登记时可暂存绑定申请，设备上线登记后自动完成绑定。
 - 保存 VL53L1X 靠背距离、LightGBM 识别来源、真实振动状态和传感器健康信息。
 - 提供设备提醒配置、配置版本确认和远程命令闭环。
 - 使用 Pydantic 校验设备上传字段。
@@ -135,6 +136,7 @@ students
 user_student_links
 devices
 device_bindings
+device_pairing_requests
 posture_records
 daily_stats
 risk_assessments
@@ -162,6 +164,7 @@ idempotency_records
 - `user_student_links`：用户和学生关系。
 - `devices`：设备基础信息、固件版本、电量、在线状态。
 - `device_bindings`：设备和学生绑定关系。
+- `device_pairing_requests`：短期设备认领申请，只保存绑定码哈希，默认 10 分钟失效。
 - `posture_records`：每次设备上传的原始坐姿记录。
 - `daily_stats`：每日统计。
 - `risk_assessments`：坐姿行为风险提示。
@@ -363,6 +366,9 @@ LLM_ENABLE_THINKING=false
 GET  /api/v1/devices
 POST /api/v1/devices
 GET  /api/v1/devices/{device_id}/status
+POST /api/v1/devices/pair
+GET  /api/v1/devices/pairings/{pairing_id}
+DELETE /api/v1/devices/pairings/{pairing_id}
 POST /api/v1/devices/bind
 ```
 
@@ -373,6 +379,9 @@ POST /api/v1/devices/bind
 - 家长只能把设备绑定到自己关联的学生。
 - 同一设备同一时间只保持一个有效绑定。
 - 新绑定创建时，旧的 `active=true` 绑定会自动置为 `active=false`。
+- 小程序推荐使用 `/devices/pair`；设备尚未登记时返回 `pending`，设备登记后自动转为 `completed`。
+- 认领成功后，后端会下发 `rotate_claim_code`，使本次使用的六位绑定码失效。
+- Wi-Fi 名称和密码只提交给硬件本地地址 `192.168.4.1`，不上传业务后端。
 - 设备上传数据时，设备状态会更新为 `online`，并同步电量、固件版本和模型版本。
 
 ### 查询设备最新数据

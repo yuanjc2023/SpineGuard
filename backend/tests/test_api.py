@@ -4,6 +4,8 @@ from pathlib import Path
 from io import BytesIO
 from zipfile import ZipFile
 
+from sqlalchemy import select
+
 TEST_DB_PATH = Path(
     os.getenv(
         "SPINEGUARD_TEST_DB_PATH",
@@ -17,7 +19,15 @@ from fastapi.testclient import TestClient
 from app import state
 from app.db import Base, engine
 from app.main import app
-from app.models import Device, DeviceBinding, PostureRecord, Student, User, UserStudentLink
+from app.models import (
+    Device,
+    DeviceBinding,
+    DevicePairingRequest,
+    PostureRecord,
+    Student,
+    User,
+    UserStudentLink,
+)
 from app.services.auth import hash_secret
 
 
@@ -89,6 +99,7 @@ def test_database_tables_created():
         "user_student_links",
         "devices",
         "device_bindings",
+        "device_pairing_requests",
         "posture_records",
         "daily_stats",
         "risk_assessments",
@@ -108,6 +119,100 @@ def test_database_tables_created():
         "idempotency_records",
         "device_commands",
     }.issubset(table_names)
+
+
+def test_softap_pairing_completes_when_device_registers():
+    reset_db()
+    seed_user("USR-PAIR-PARENT", "pair_parent", "parent123", "parent")
+
+    from app.db import SessionLocal
+
+    db = SessionLocal()
+    db.add(Student(student_id="STU-PAIR-001", display_code="STU-PAIR-001"))
+    db.add(
+        UserStudentLink(
+            user_id="USR-PAIR-PARENT",
+            student_id="STU-PAIR-001",
+            relation="guardian",
+        )
+    )
+    db.commit()
+    db.close()
+
+    device_id = "SG-PAIR-001"
+    secret = "b" * 64
+    with TestClient(app) as client:
+        login = client.post(
+            "/api/v1/auth/login",
+            json={"username": "pair_parent", "password": "parent123"},
+        )
+        user_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+        pairing = client.post(
+            "/api/v1/devices/pair",
+            headers=user_headers,
+            json={
+                "device_id": device_id,
+                "student_id": "STU-PAIR-001",
+                "claim_code": "654321",
+            },
+        )
+        assert pairing.status_code == 200
+        assert pairing.json()["data"]["status"] == "pending"
+        pairing_id = pairing.json()["data"]["pairing_id"]
+
+        registration = client.post(
+            "/api/v1/device/register",
+            headers={"X-Device-ID": device_id, "X-Device-Token": secret},
+            json={
+                "device_id": device_id,
+                "device_name": "SpineGuard Pair Test",
+                "claim_code": "654321",
+                "firmware_version": "2.0.0",
+                "model_version": "lightgbm-v1",
+            },
+        )
+        assert registration.status_code == 200
+        assert registration.json()["pairing_status"] == "completed"
+        assert registration.json()["pairing_id"] == pairing_id
+
+        result = client.get(
+            f"/api/v1/devices/pairings/{pairing_id}",
+            headers=user_headers,
+        )
+        assert result.status_code == 200
+        assert result.json()["data"]["status"] == "completed"
+        assert result.json()["data"]["binding"]["device_id"] == device_id
+
+        wrong_code = client.post(
+            "/api/v1/devices/pair",
+            headers=user_headers,
+            json={
+                "device_id": device_id,
+                "student_id": "STU-PAIR-001",
+                "claim_code": "000000",
+            },
+        )
+        assert wrong_code.status_code == 400
+
+        config = client.get(
+            f"/api/v1/device/config/{device_id}",
+            headers={"X-Device-ID": device_id, "X-Device-Token": secret},
+        )
+        assert config.json()["data"]["command"]["type"] == "rotate_claim_code"
+
+    db = SessionLocal()
+    assert db.scalar(
+        select(DeviceBinding).where(
+            DeviceBinding.device_id == device_id,
+            DeviceBinding.student_id == "STU-PAIR-001",
+            DeviceBinding.active.is_(True),
+        )
+    ) is not None
+    assert db.scalar(
+        select(DevicePairingRequest).where(DevicePairingRequest.pairing_id == pairing_id)
+    ).status == "completed"
+    db.close()
 
 
 def test_updated_firmware_registration_config_command_and_telemetry():

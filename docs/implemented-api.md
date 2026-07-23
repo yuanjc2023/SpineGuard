@@ -6,7 +6,7 @@
 
 - 当前用户接口同时支持 `GET /api/v1/auth/me` 和兼容契约的 `GET /api/v1/me`。
 - 当前历史记录接口已支持 `from`、`to`、`limit`，其中 `from/to` 支持毫秒时间戳、`YYYY-MM-DD` 或 ISO datetime。
-- 当前设备绑定接口支持可选 `bind_code` 字段，但暂不校验。
+- 新固件登记后，原设备绑定接口会校验 `bind_code`；小程序 SoftAP 配网推荐使用可等待设备上线的 `/devices/pair`。
 - 当前 WebSocket 同时支持设备维度 `WS /api/v1/ws/devices/{device_id}` 和学生维度 `WS /api/v1/ws/students/{student_id}?token=<access_token>`。
 - 当前已实现每日统计和每周统计接口，统计口径基于 `session_id` 分组和相邻遥测时间片估算。
 - 当前 LLM 智能报告会读取 `backend/.env` 并调用 OpenAI-compatible `/chat/completions`；调用失败时自动返回规则兜底内容。
@@ -352,7 +352,29 @@ AUTO_REPORT_CATCH_UP_DAYS=7
 - 同一设备同一时间只保留一个有效绑定
 - 同一学生同一时间只保留一个有效设备；绑定新设备时会解除该学生的旧设备绑定
 - 创建新绑定时，旧的 `active=true` 绑定会自动失效
-- `bind_code` 当前可选接收，暂不校验
+- 新固件设备已有绑定码哈希时，`bind_code` 必须填写且会校验；旧测试设备仍兼容可选字段
+
+### `POST /api/v1/devices/pair`
+
+小程序从硬件本地 `GET http://192.168.4.1/api/status` 读取 `device_id` 和六位 `claim_code` 后，提交设备认领：
+
+```json
+{
+  "device_id": "SG-A8D738",
+  "student_id": "STU-DEMO-001",
+  "claim_code": "123456"
+}
+```
+
+设备已经登记时立即返回 `status=completed`；设备尚未登记时返回 `status=pending`。待固件联网调用 `POST /api/v1/device/register` 后，后端校验相同绑定码并自动建立绑定。申请默认 10 分钟过期，后端只保存绑定码哈希。
+
+### `GET /api/v1/devices/pairings/{pairing_id}`
+
+查询认领进度。`status` 可能为 `pending`、`completed`、`expired`、`failed` 或 `cancelled`。完成时 `binding` 返回生效的设备与学生绑定。
+
+### `DELETE /api/v1/devices/pairings/{pairing_id}`
+
+取消尚未完成的认领申请。已完成或已过期的申请不会被反向修改。
 
 ### `GET /api/v1/devices/{device_id}/latest`
 

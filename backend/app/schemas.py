@@ -236,11 +236,28 @@ class DeviceBindRequest(BaseModel):
     bind_code: str | None = Field(default=None, max_length=32)
 
 
+class DevicePairRequest(BaseModel):
+    device_id: str = Field(min_length=1, max_length=64)
+    student_id: str = Field(min_length=1, max_length=64)
+    claim_code: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
+
+
 class DeviceBindingOut(BaseModel):
     device_id: str
     student_id: str
     bound_by_user_id: str
     active: bool
+
+
+class DevicePairingOut(BaseModel):
+    pairing_id: str
+    device_id: str
+    student_id: str
+    status: Literal["pending", "completed", "expired", "failed", "cancelled"]
+    expires_at: str
+    completed_at: str | None = None
+    binding: DeviceBindingOut | None = None
+    message: str
 
 
 class DailyStatOut(BaseModel):

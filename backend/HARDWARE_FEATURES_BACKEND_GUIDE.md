@@ -306,6 +306,15 @@ X-Device-Token: <64位设备密钥>
 POST /api/v1/devices/bind
 ```
 
+小程序通过 SoftAP 首次配网时，推荐改用支持“等待设备上线后自动绑定”的接口：
+
+```text
+POST /api/v1/devices/pair
+GET  /api/v1/devices/pairings/{pairing_id}
+```
+
+完整时序、请求响应和前端调用步骤见 `backend/SOFTAP_DEVICE_PAIRING_GUIDE.md`。Wi-Fi SSID 和密码只提交给硬件本地 `192.168.4.1`，不进入后端数据库。
+
 ```json
 {
   "device_id": "SG-A8D738",
@@ -413,4 +422,3 @@ shared/example.json                             新硬件完整遥测示例
 docs/telemetry-contract.md                      遥测字段说明
 docs/implemented-api.md                         当前接口说明
 ```
-
