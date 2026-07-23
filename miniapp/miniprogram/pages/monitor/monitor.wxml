@@ -1,0 +1,91 @@
+<view class="container">
+  <view class="risk-card">
+    <view class="risk-ring" style="background: {{riskColor}};">
+      <view class="risk-value" style="color: {{riskColor}}">{{riskLevelText}}</view>
+    </view>
+    <view class="risk-desc">
+      <view class="risk-title-row">
+        <text class="risk-title">实时坐姿风险</text>
+        <text class="risk-status">{{riskMsg}}</text>
+      </view>
+      <text class="sync-time">最近同步：{{lastSyncTime}}</text>
+    </view>
+    <text class="help-icon" bindtap="showRiskHelp">?</text>
+  </view>
+
+  <view class="device-strip {{deviceStatusClass}}" bindtap="goToDeviceManage">
+    <view class="device-main">
+      <text class="device-dot"></text>
+      <text class="device-text">{{deviceStatusText}}｜电量 {{deviceBatteryText}}｜{{deviceSyncText}}</text>
+    </view>
+    <text class="device-link">设备管理 ></text>
+  </view>
+
+  <view class="posture-card">
+    <view class="posture-summary">
+      <view class="posture-visual">
+        <view class="posture-icon">{{postureIcon}}</view>
+      </view>
+      <view class="posture-copy">
+        <text class="posture-label">当前坐姿</text>
+        <text class="posture-text">{{postureName}}</text>
+      </view>
+      <view class="live-badge"><text class="live-dot"></text>实时</view>
+    </view>
+    <view class="heatmap">
+      <view class="heatmap-header">
+        <view class="heatmap-title-wrap">
+          <text>3D 座椅压力分布</text>
+          <text class="heatmap-subtitle">靠背测距传感器 · 坐垫五点热力图</text>
+        </view>
+        <text class="heatmap-source">{{pressureSourceText}} · {{telemetryMode}}</text>
+      </view>
+      <view class="backrest-reading">靠背距离：{{backrestDistanceText}}</view>
+      <canvas
+        id="pressureHeatmap"
+        type="2d"
+        class="pressure-canvas"
+        bindtouchstart="onHeatmapTouchStart"
+        catchtouchmove="onHeatmapTouchMove"
+        bindtouchend="onHeatmapTouchEnd"
+        bindlongpress="resetHeatmapView"
+      ></canvas>
+      <view class="rotate-hint"><text class="rotate-icon">↻</text>拖动旋转 · 长按复位</view>
+      <view class="pressure-legend" aria-label="压力等级由低到高">
+        <text>低</text>
+        <view class="legend-gradient"></view>
+        <text>高</text>
+      </view>
+      <view class="sensor-readings">
+        <view class="sensor-reading" wx:for="{{sensorReadings}}" wx:key="id">
+          <text class="sensor-name">{{item.name}}</text>
+          <text class="sensor-value">{{item.normalizedValue}}</text>
+          <text class="sensor-raw">ADC {{item.rawValueText}}</text>
+        </view>
+      </view>
+    </view>
+    <view class="encourage-text">{{encourageText}}</view>
+  </view>
+
+  <view class="control-card">
+    <view class="control-item">
+      <text>坐姿异常振动提醒</text>
+      <switch checked="{{vibrationEnabled}}" bindchange="toggleVibration"/>
+    </view>
+    <view class="control-item" bindtap="goToDeviceManage">
+      <text>更多设备设置</text>
+      <text class="control-link">进入 ></text>
+    </view>
+    <button class="refresh-btn" bindtap="manualRefresh">手动刷新</button>
+  </view>
+
+  <view class="mask" wx:if="{{showRiskModal}}" bindtap="closeRiskModal">
+    <view class="modal-content" catchtap="preventClose">
+      <text class="modal-title">风险等级说明</text>
+      <text class="modal-text">低：坐姿稳定，压力分布均衡。</text>
+      <text class="modal-text">中：存在轻微倾斜或前倾，建议及时调整。</text>
+      <text class="modal-text">高：异常姿势持续，建议起身活动并检查桌椅高度。</text>
+      <button class="modal-btn" bindtap="closeRiskModal">知道了</button>
+    </view>
+  </view>
+</view>

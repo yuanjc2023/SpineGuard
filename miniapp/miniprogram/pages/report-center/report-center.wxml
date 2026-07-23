@@ -1,0 +1,85 @@
+<view class="container">
+  <view class="segment-shell">
+    <view class="segment-item {{activeSection === 'smart' ? 'active' : ''}}" data-section="smart" bindtap="switchSection">
+      <text>智能分析</text>
+    </view>
+    <view class="segment-item {{activeSection === 'system' ? 'active' : ''}}" data-section="system" bindtap="switchSection">
+      <text>系统报告</text>
+      <text class="segment-badge" wx:if="{{unreadCount}}">{{unreadCount > 99 ? '99+' : unreadCount}}</text>
+    </view>
+  </view>
+
+  <view class="message error" wx:if="{{errorMessage}}">{{errorMessage}}</view>
+  <view class="message warning" wx:if="{{notificationWarning}}">{{notificationWarning}}</view>
+
+  <block wx:if="{{activeSection === 'smart'}}">
+    <view class="smart-generate-card">
+      <view class="smart-heading">
+        <view class="smart-orb">🤖</view>
+        <view class="smart-copy">
+          <text class="smart-eyebrow">AI POSTURE ANALYSIS</text>
+          <text class="smart-title">最近坐姿智能分析</text>
+          <text class="smart-desc">AI智能分析最近20分钟左右的坐姿情况</text>
+        </view>
+      </view>
+      <button class="smart-button" bindtap="generateReport" loading="{{generating}}" disabled="{{generating}}">{{generating ? '正在生成，请稍候…' : '生成新的智能报告'}}</button>
+    </view>
+
+    <view class="loading-card" wx:if="{{loading && !smartReports.length}}"><view class="loading-dot"></view><text>正在同步智能报告…</text></view>
+    <view class="list-heading" wx:if="{{smartReports.length}}">
+      <view><text class="list-title">最近生成</text><text class="list-sub">共 {{smartReports.length}} 份</text></view>
+      <text class="refresh-hint">下拉刷新</text>
+    </view>
+    <view class="empty-card" wx:if="{{!loading && !smartReports.length}}">
+      <text class="empty-icon">🤖</text><text class="empty-title">还没有智能分析</text><text>点击上方按钮分析最近坐姿数据。</text>
+    </view>
+    <view class="report-list smart-list" wx:if="{{smartReports.length}}">
+      <view class="report-item smart-item" wx:for="{{smartReports}}" wx:key="id" data-id="{{item.id}}" bindtap="openReport">
+        <view class="type-icon type-smart">AI</view>
+        <view class="report-copy">
+          <text class="report-type">智能报告</text>
+          <text class="report-created">{{item.createdAtText}}</text>
+          <text class="report-range">数据范围：{{item.dataRangeText}}</text>
+          <view class="report-meta"><text class="meta-dot">·</text><text class="generation-tag {{item.isFallback ? 'fallback' : ''}}">{{item.generatedText}}</text></view>
+        </view>
+        <text class="chevron">›</text>
+      </view>
+    </view>
+  </block>
+
+  <block wx:if="{{activeSection === 'system'}}">
+    <view class="system-summary-card">
+      <view class="system-bell">🔔</view>
+      <view class="system-summary-copy"><text class="system-title">系统自动报告</text><text class="system-desc">接收完整自然日、自然周和自然月报告</text></view>
+      <view class="unread-box"><text class="unread-number">{{unreadCount}}</text><text class="unread-label">份未读</text></view>
+    </view>
+
+    <view class="filter-row">
+      <view class="filter-chip {{systemFilter === item.key ? 'active' : ''}}" wx:for="{{filterOptions}}" wx:key="key" data-filter="{{item.key}}" bindtap="selectSystemFilter">{{item.label}}</view>
+    </view>
+
+    <view class="loading-card" wx:if="{{loading && !systemReports.length}}"><view class="loading-dot"></view><text>正在同步系统报告…</text></view>
+    <view class="empty-card" wx:if="{{!loading && !filteredSystemReports.length}}">
+      <text class="empty-icon">📄</text><text class="empty-title">暂无{{systemFilter === 'all' ? '系统报告' : (systemFilter === 'daily' ? '日报' : (systemFilter === 'weekly' ? '周报' : '月报'))}}</text><text>后端会在完整周期结束后自动生成。</text>
+    </view>
+
+    <view class="system-list" wx:if="{{filteredSystemReports.length}}">
+      <block wx:for="{{filteredSystemReports}}" wx:key="id">
+        <view class="system-group-title" wx:if="{{item.groupHeader}}">{{item.groupHeader}}</view>
+        <view class="report-item system-item {{item.readStateKnown ? (item.isRead ? 'read-item' : 'unread-item') : ''}}" data-id="{{item.id}}" bindtap="openReport">
+          <view class="type-icon type-{{item.typeCode}}">{{item.typeCode === 'daily' ? '日' : (item.typeCode === 'weekly' ? '周' : '月')}}</view>
+          <view class="report-copy">
+            <view class="report-title-line"><text class="report-type">{{item.type}}</text><text class="new-dot" wx:if="{{item.readStateKnown && !item.isRead}}"></text></view>
+            <text class="report-period">{{item.periodText}}</text>
+            <view class="report-meta"><text>{{item.sourceText}}</text><text class="meta-dot">·</text><text>{{item.generatedText}}</text></view>
+          </view>
+          <view class="report-side">
+            <text class="risk-tag {{item.riskLevel}}">{{item.riskText}}</text>
+            <text class="read-tag {{item.readStateKnown && !item.isRead ? 'unread' : ''}}">{{item.readText}}</text>
+            <text class="chevron">›</text>
+          </view>
+        </view>
+      </block>
+    </view>
+  </block>
+</view>

@@ -1,0 +1,8 @@
+<view class="tab-bar">
+  <view class="tab-bar-item tab-item-{{index}}" wx:for="{{list}}" wx:key="index" data-index="{{index}}" data-path="{{item.pagePath}}" bindtap="switchTab">
+    <view class="icon-wrap {{selected === index ? 'is-selected' : ''}}">
+      <image class="tab-icon" src="{{selected === index ? item.selectedIconPath : item.iconPath}}" mode="aspectFit"></image>
+    </view>
+    <text class="tab-text {{selected === index ? 'is-selected' : ''}}">{{item.text}}</text>
+  </view>
+</view>

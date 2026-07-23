@@ -1,0 +1,42 @@
+{
+  "pages": [
+    "pages/login/login",
+    "pages/monitor/monitor",
+    "pages/data/data",
+    "pages/game/game",
+    "pages/focus/focus",
+    "pages/exercise-guide/exercise-guide",
+    "pages/ranking/ranking",
+    "pages/ai-sports/ai-sports",
+    "pages/report-center/report-center",
+    "pages/report-detail/report-detail",
+    "pages/child-info/child-info",
+    "pages/device-manage/device-manage",
+    "pages/wifi-config/wifi-config",
+    "pages/help-feedback/help-feedback",
+    "pages/about/about",
+    "pages/profile/profile"
+  ],
+  "window": {
+    "backgroundColor": "#F6F6F6",
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#F6F6F6",
+    "navigationBarTitleText": "脊小树",
+    "navigationBarTextStyle": "black"
+  },
+  "tabBar": {
+    "custom": true,
+    "color": "#999999",
+    "selectedColor": "#2ECC71",
+    "backgroundColor": "#ffffff",
+    "list": [
+      {"pagePath": "pages/monitor/monitor", "text": "监测"},
+      {"pagePath": "pages/data/data", "text": "数据"},
+      {"pagePath": "pages/game/game", "text": "乐园"},
+      {"pagePath": "pages/profile/profile", "text": "我的"}
+    ]
+  },
+  "sitemapLocation": "sitemap.json",
+  "style": "v2",
+  "lazyCodeLoading": "requiredComponents"
+}

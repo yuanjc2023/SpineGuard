@@ -1,0 +1,19 @@
+<view class="container">
+  <view class="section">
+    <text class="section-title">常见问题</text>
+    <view class="faq-item" wx:for="{{faqs}}" wx:key="question" data-index="{{index}}" bindtap="toggleFaq">
+      <view class="faq-question">
+        <text>{{item.question}}</text>
+        <text class="arrow">{{activeFaq === index ? '收起' : '展开'}}</text>
+      </view>
+      <text class="faq-answer" wx:if="{{activeFaq === index}}">{{item.answer}}</text>
+    </view>
+  </view>
+
+  <view class="section">
+    <text class="section-title">意见反馈</text>
+    <textarea class="textarea" value="{{feedbackContent}}" placeholder="请描述你遇到的问题或建议" bindinput="onContentInput"></textarea>
+    <input class="input" value="{{contact}}" placeholder="联系方式（选填）" bindinput="onContactInput" />
+    <button class="submit-btn" loading="{{submitting}}" bindtap="submitFeedback">提交反馈</button>
+  </view>
+</view>

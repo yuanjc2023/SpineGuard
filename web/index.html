@@ -1,1 +1,564 @@
-<div id="root"></div><script type="module" src="/src/main.tsx"></script>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SpineGuard 智能坐姿监测平台</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="styles.css?v=20260723-profile-panels1" />
+</head>
+<body>
+  <main id="landing" class="landing">
+    <section class="landing-stage" aria-label="SpineGuard 登录入口">
+      <div class="landing-copy">
+        <div class="logo-system" aria-label="SpineGuard 动态标识">
+          <div class="logo-core">
+            <span class="spine-line"></span>
+            <span class="spine-dot d1"></span>
+            <span class="spine-dot d2"></span>
+            <span class="spine-dot d3"></span>
+            <span class="spine-dot d4"></span>
+          </div>
+          <div class="logo-ring r1"></div>
+          <div class="logo-ring r2"></div>
+        </div>
+        <p class="eyebrow">SpineGuard</p>
+        <h1>儿童脊柱健康的智能守护舱</h1>
+        <p class="landing-subtitle">
+          欢迎使用 SpineGuard，让柔性压力感知与边缘 AI 把日常坐姿转化为可追踪、可预警、可改善的脊柱健康信号。
+        </p>
+        <div class="landing-signals">
+          <span>Pressure Matrix</span>
+          <span>Edge AI</span>
+          <span>Health Report</span>
+        </div>
+      </div>
+
+      <aside class="auth-panel">
+        <div class="auth-head">
+          <p class="eyebrow">Account Access</p>
+          <h2 id="auth-title">登录平台</h2>
+          <p>选择家长或学校管理员身份进入对应工作台。</p>
+        </div>
+        <div class="auth-tabs">
+          <button class="active" data-auth-mode="login" type="button">登录</button>
+          <button data-auth-mode="register" type="button">注册</button>
+        </div>
+        <form id="auth-form">
+          <label class="field">
+            <span>身份</span>
+            <select id="auth-role">
+              <option value="parent">普通用户 / 家长</option>
+              <option value="admin">管理员 / 学校管理者</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>账号</span>
+            <input id="auth-account" type="text" placeholder="parent001 或 admin001" required />
+          </label>
+          <label class="field">
+            <span>密码</span>
+            <input id="auth-password" type="password" placeholder="至少 6 位密码" required />
+          </label>
+          <label class="field register-field hidden">
+            <span>学生 / 学校名称</span>
+            <input id="auth-name" type="text" placeholder="例如 明德小学 / 小林同学" />
+          </label>
+          <button id="auth-submit" class="primary full" type="submit">登录</button>
+        </form>
+      </aside>
+    </section>
+  </main>
+
+  <div id="app" class="app hidden">
+    <header class="topbar">
+      <a class="brand" href="#dashboard" data-nav="dashboard" aria-label="SpineGuard 工作台">
+        <span class="brand-mark">SG</span>
+        <span>
+          <strong>SpineGuard</strong>
+          <small id="workspace-label">智能坐姿监测平台</small>
+        </span>
+      </a>
+      <nav id="nav" class="nav" aria-label="功能导航"></nav>
+      <div class="session">
+        <div class="notification-wrap">
+          <button id="notification-btn" class="icon-btn" type="button" aria-label="系统通知">
+            <span class="bell-icon">!</span>
+            <span id="notification-dot" class="notify-dot"></span>
+            <span id="notification-count" class="notify-count hidden" aria-label="未读通知数量"></span>
+          </button>
+          <div id="notification-menu" class="dropdown-panel notification-panel hidden">
+            <div class="dropdown-title">系统通知</div>
+            <div id="notification-list" class="notification-list"></div>
+          </div>
+        </div>
+        <div class="user-wrap">
+          <button id="user-menu-btn" class="user-chip" type="button">
+            <span id="user-avatar">林</span>
+            <strong id="session-role">未登录</strong>
+          </button>
+          <div id="user-menu" class="dropdown-panel user-menu hidden">
+            <button data-user-action="profile" type="button">个人中心</button>
+            <button data-user-action="switch" type="button">切换账户</button>
+            <button data-user-action="logout" type="button">退出登录</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section id="dashboard" class="tab-page active" data-role="admin">
+        <div class="admin-page-head">
+          <div class="page-heading">
+            <p class="eyebrow hero-badge" id="dashboard-eyebrow">Class Health Workspace</p>
+            <h1 id="dashboard-title">班级护脊森林</h1>
+            <p id="dashboard-desc">实时掌握班级坐姿、风险学生与设备运行状态。</p>
+          </div>
+          <div class="admin-context-bar">
+            <label><span>查看班级</span><select id="admin-class-select" aria-label="选择班级"></select></label>
+            <div class="admin-period-tabs" aria-label="统计周期"><button class="active" type="button">今日</button><button disabled title="本周数据整理中" type="button">本周</button></div>
+            <span id="admin-live-status" class="status-pill">正在同步</span>
+          </div>
+        </div>
+        <div class="metrics-grid" id="dashboard-metrics"></div>
+        <div class="admin-command-grid">
+          <section class="panel admin-forest-panel">
+            <div class="panel-title"><div><p class="eyebrow">学生实时状态</p><h2>班级护脊森林</h2><p>每棵树对应一名学生，点击查看实时姿态、今日统计和风险信息。</p></div><span id="admin-forest-count" class="status-pill">0 名学生</span></div>
+            <div id="admin-student-forest" class="admin-student-forest"></div>
+          </section>
+          <section class="panel admin-chart-panel admin-posture-panel">
+            <div class="panel-title"><div><h2>当前坐姿状态</h2><p>最新遥测快照</p></div></div>
+            <div id="admin-posture-composition" class="admin-posture-composition"></div>
+          </section>
+          <section class="panel admin-insight-panel">
+            <div class="panel-title"><div><p class="eyebrow">Current Signal</p><h2>今日班级健康洞察</h2></div></div>
+            <div id="admin-health-insights" class="admin-health-insights"></div>
+            <div class="admin-quick-actions"><button data-admin-nav="school" class="ghost small" type="button">查看风险学生</button><button data-admin-nav="devices" class="ghost small" type="button">查看离线设备</button><button data-admin-nav="admin-reports" class="primary small" type="button">导出今日数据</button></div>
+          </section>
+          <section class="panel admin-chart-panel admin-abnormal-panel">
+            <div class="panel-title"><div><h2>今日主要异常姿态</h2><p>每日统计中的异常记录</p></div></div>
+            <div id="admin-abnormal-bars" class="admin-horizontal-bars"></div>
+          </section>
+          <section class="panel admin-ranking-panel">
+            <div class="panel-title"><div><h2>班级健康排行</h2><p>排行榜仅展示前三名。</p></div><button data-admin-action="show-all-students" class="text-button" type="button">查看全部</button></div>
+            <div class="admin-ranking-tabs"><button class="active" data-admin-ranking="standard" type="button">标准坐姿率榜</button><button data-admin-ranking="progress" type="button">进步榜</button></div>
+            <div id="admin-ranking-list" class="admin-ranking-list"></div>
+          </section>
+          <section class="panel admin-chart-panel admin-trend-panel">
+            <div class="panel-title"><div><h2>今日状态人数趋势</h2><p>按已有遥测记录聚合；历史离线事件当前无法还原。</p></div></div>
+            <div class="admin-trend-wrap"><canvas id="admin-status-trend" height="220" aria-label="今日坐姿状态人数趋势"></canvas><div id="admin-trend-empty" class="admin-empty hidden"></div></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="monitor" class="tab-page" data-role="parent">
+        <div class="page-heading">
+          <p class="eyebrow hero-badge">Parent Monitor</p>
+          <h1>实时坐姿</h1>
+          <p>融合当前坐姿状态、坐垫压力分布和今日关键指标，帮助家长快速判断孩子此刻是否坐得稳定。</p>
+        </div>
+        <div class="metrics-grid" id="parent-live-metrics"></div>
+        <div class="workspace">
+          <section class="panel monitor-main">
+            <div class="panel-title">
+              <div>
+                <h2>3D 座椅压力状态</h2>
+                <p>靠背顶部集成测距传感器，坐垫基于左、右、前、后、中心五点 FSR 生成连续压力热力图。</p>
+              </div>
+              <span id="live-time" class="status-pill">--:--:--</span>
+            </div>
+            <div class="seat-3d-stage">
+              <div id="seat-source" class="seat-source">5 点 FSR · 等待遥测</div>
+              <div class="seat-3d" id="seat-3d" aria-label="带靠背测距传感器与五点坐垫压力热力图的三维座椅"></div>
+              <div class="seat-sensor-values" id="seat-sensor-values" aria-label="五点压力传感器实时读数"></div>
+              <div class="seat-legend">
+                <span>低压</span>
+                <div class="legend-gradient"></div>
+                <span>高压</span>
+              </div>
+            </div>
+          </section>
+
+          <aside class="panel posture-panel">
+            <div class="posture-ring" id="posture-ring">
+              <span id="posture-id">0</span>
+              <small>姿态 ID</small>
+            </div>
+            <h2 id="posture-name">标准坐姿</h2>
+            <p id="posture-desc">坐垫受力对称，靠背接触稳定。</p>
+            <div class="posture-stats">
+              <div><span>不对称指数</span><strong id="asymmetry-index">0.08</strong></div>
+              <div><span>连续保持</span><strong id="duration">12 分钟</strong></div>
+              <div><span>振动提醒</span><strong id="vibration">未触发</strong></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="reports" class="tab-page" data-role="parent">
+        <div class="page-heading">
+          <p class="eyebrow hero-badge">Health Report</p>
+          <h1>健康报告与建议</h1>
+          <p>查看自然日、周、月自动报告，或基于最近坐姿记录生成智能分析。</p>
+        </div>
+        <div class="reports-grid">
+          <section class="panel report-card report-inbox-panel">
+            <div class="panel-title">
+              <div>
+                <h2>系统定时报告箱</h2>
+                <p>系统定时发送给用户坐姿检测日报、周报和月报。</p>
+              </div>
+              <button id="refresh-report" class="primary small" type="button">刷新报告</button>
+            </div>
+            <div id="report-content" class="report-content"></div>
+          </section>
+          <section class="panel report-trend-panel">
+            <div class="panel-title">
+              <div>
+                <h2>最近趋势</h2>
+                <p>最近 24 个采样点的标准坐姿率。</p>
+              </div>
+            </div>
+            <div id="trend-chart" class="chart"></div>
+          </section>
+        </div>
+        <section class="panel smart-report-panel">
+          <div class="panel-title">
+            <div>
+                <h2>生成智能报告</h2>
+                <p>由后端分析孩子最近 600 条去重坐姿记录。</p>
+            </div>
+          </div>
+          <div class="report-generator-toolbar">
+            <button id="generate-ai-report" class="primary" type="button">生成智能报告</button>
+          </div>
+          <div id="ai-report-output" class="ai-report-output">
+            <span>等待生成。报告统计与风险由后端计算，LLM 不可用时会自动返回规则报告。</span>
+          </div>
+        </section>
+      </section>
+
+      <section id="profile" class="tab-page" data-role="all">
+        <div class="page-heading">
+          <p class="eyebrow hero-badge">Profile Center</p>
+          <h1>个人中心</h1>
+          <p>查看账号信息、绑定对象、设备状态和通知偏好。</p>
+        </div>
+        <div class="profile-layout">
+          <section class="panel profile-card">
+            <div class="profile-hero">
+              <div id="profile-avatar" class="profile-avatar">林</div>
+              <div>
+                <h2 id="profile-name">林女士</h2>
+                <p id="profile-role">家长用户</p>
+              </div>
+            </div>
+            <div class="profile-stats" id="profile-stats"></div>
+            <nav class="profile-side-actions" aria-label="个人中心设置">
+              <button class="profile-side-action active" data-profile-panel="account" type="button">
+                <span>账号与设备绑定</span>
+                <small>资料、绑定对象与设备配网</small>
+              </button>
+              <button class="profile-side-action" data-profile-panel="reminder" type="button">
+                <span>设备提醒设置</span>
+                <small>提醒模式、时长与振动强度</small>
+              </button>
+            </nav>
+          </section>
+          <section class="panel profile-detail-panel">
+            <div id="profile-account-panel" class="profile-panel-view">
+              <div class="panel-title">
+                <div>
+                  <h2>账号资料</h2>
+                  <p id="profile-storage-note">昵称保存在当前标签页会话中；设备绑定关系以 SpineGuard 后端为准。</p>
+                </div>
+              </div>
+              <div class="profile-form">
+                <label class="field"><span>昵称</span><input id="profile-nickname" type="text" /></label>
+                <label class="field"><span>绑定对象</span><select id="profile-binding"></select></label>
+                <label class="field">
+                  <span>实际设备编号</span>
+                  <input id="profile-device" type="text" maxlength="64" autocomplete="off" placeholder="例如 SG-0001" />
+                  <small>必须与硬件上传遥测时使用的 device_id 完全一致；修改后会重新绑定，不会重命名硬件。</small>
+                </label>
+                <label class="field">
+                  <span>六位设备认领码</span>
+                  <input id="profile-bind-code" type="text" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="新硬件必填，例如 123456" />
+                  <small>新硬件使用认领配对流程；仅旧测试设备可以留空并走兼容绑定接口。</small>
+                </label>
+                <div id="profile-device-status" class="profile-device-status" role="status"></div>
+                <button id="cancel-device-pairing" class="ghost small hidden" type="button">取消等待设备上线</button>
+                <button id="save-profile" class="primary small" type="button">保存资料并绑定设备</button>
+                <div class="profile-device-portal">
+                  <a class="ghost small" href="http://192.168.4.1" target="_blank" rel="noopener noreferrer">设备配置</a>
+                  <small>请先将电脑连接到 SpineGuard 设备发出的 Wi‑Fi 热点，再打开设备配置页面。</small>
+                </div>
+              </div>
+            </div>
+            <div id="profile-reminder-panel" class="profile-panel-view hidden">
+              <div class="panel-title">
+                <div>
+                  <h2>设备提醒设置</h2>
+                  <p>配置保存后由设备轮询获取；只有设备回传的应用版本一致时才算真正同步。</p>
+                </div>
+              </div>
+              <div class="profile-device-config profile-form">
+                <label class="field"><span>设备名称</span><input id="profile-device-name" type="text" maxlength="64" /></label>
+                <label class="field"><span>提醒模式</span><select id="profile-reminder-mode"><option value="normal">普通</option><option value="study">学习</option><option value="do_not_disturb">免打扰</option></select></label>
+                <label class="field"><span>异常触发（秒）</span><input id="profile-trigger-seconds" type="number" min="5" max="3600" value="300" /></label>
+                <label class="field"><span>提醒冷却（秒）</span><input id="profile-cooldown-seconds" type="number" min="30" max="7200" value="600" /></label>
+                <label class="field"><span>振动强度（1～100）</span><input id="profile-intensity" type="number" min="1" max="100" value="40" /></label>
+                <label class="field profile-switch-field"><span>启用硬件振动</span><input id="profile-vibration-enabled" type="checkbox" checked /></label>
+                <div id="profile-config-status" class="profile-device-status" role="status">点击“读取配置”获取后端当前设置。</div>
+                <div class="profile-config-actions">
+                  <button id="load-device-config" class="ghost small" type="button">读取配置</button>
+                  <button id="save-device-config" class="primary small" type="button">保存设备配置</button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section id="game" class="tab-page" data-role="parent">
+        <div class="garden-heading">
+          <div>
+            <p class="eyebrow hero-badge">Focus Garden</p>
+            <h1>我的护脊乐园</h1>
+            <p>专注陪伴、成长复盘与资源规划，共享同一棵小树。</p>
+          </div>
+          <div class="garden-device"><span></span>SG-0001 在线</div>
+        </div>
+        <nav class="garden-tabs" aria-label="护脊乐园视图">
+          <button class="active" data-garden-view="home" type="button">我的树屋</button>
+          <button data-garden-view="focus" type="button">专注种树</button>
+          <button data-garden-view="archive" type="button">成长档案</button>
+          <button data-garden-view="collection" type="button">森林图鉴</button>
+        </nav>
+        <div id="garden-view"></div>
+      </section>
+
+      <section id="exercise" class="tab-page" data-role="parent">
+        <div class="exercise-hero">
+          <div>
+            <p class="eyebrow hero-badge">Exercise Recommendation Center</p>
+            <h1>智能护脊训练</h1>
+            <p>依据当前遥测、今日统计和近期坐姿采样生成规则推荐。训练仅用于动作学习，不判定完成、不发放奖励。</p>
+            <div id="exercise-reasons" class="exercise-reason-list"></div>
+          </div>
+          <div class="exercise-hero-summary">
+            <span>本轮建议</span>
+            <strong id="exercise-hero-action">正在分析坐姿数据</strong>
+            <small id="exercise-hero-duration">预计 2～3 分钟</small>
+            <button class="primary" id="exercise-start-recommended" type="button">开始推荐引导</button>
+          </div>
+        </div>
+
+        <div class="exercise-dashboard">
+          <section class="panel exercise-analysis-panel">
+            <div class="panel-title"><div><h2>今日坐姿分析</h2><p id="exercise-data-source">正在读取现有遥测和统计</p></div><span class="status-pill">数据规则</span></div>
+            <div id="exercise-analysis-metrics" class="exercise-analysis-metrics"></div>
+            <div class="exercise-explanation">
+              <strong>推荐说明</strong>
+              <p id="exercise-rule-explanation">分析完成后展示推荐依据。</p>
+              <button id="exercise-ai-explain" class="ghost small" type="button">获取现有 AI 助手解读</button>
+            </div>
+          </section>
+
+          <section class="panel exercise-recommend-panel">
+            <div class="panel-title"><div><h2>今日推荐</h2><p>优先展示最符合当前状态的 3 个动作</p></div></div>
+            <div id="exercise-recommendations" class="exercise-recommendations"></div>
+          </section>
+        </div>
+
+        <section class="panel exercise-detail-panel" id="exercise-detail-panel">
+          <div id="exercise-detail"></div>
+        </section>
+
+        <section class="panel exercise-library-panel">
+          <div class="panel-title"><div><h2>护脊动作知识库</h2><p>按训练目标浏览；动作示意由前端图形绘制，未使用方案参考图片。</p></div></div>
+          <div id="exercise-category-tabs" class="exercise-category-tabs"></div>
+          <div id="exercise-library" class="exercise-library"></div>
+        </section>
+
+        <div class="exercise-lower-grid">
+          <section class="panel">
+            <div class="panel-title"><div><h2>7日护脊引导计划</h2><p>仅保存在当前浏览器，不作为正式完成记录</p></div></div>
+            <div id="exercise-seven-day" class="exercise-seven-day"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-title"><div><h2>最近查看 / 最近引导</h2><p>本地体验记录，不与多端同步</p></div></div>
+            <div id="exercise-recent" class="exercise-recent"></div>
+          </section>
+        </div>
+
+        <section class="panel exercise-follow-panel">
+          <div class="panel-title">
+            <div><p class="eyebrow">Guided Practice</p><h2>护脊运动跟练</h2><p>跟随完整视频进行校园护脊形体操。</p></div>
+            <span class="status-pill">04:58</span>
+          </div>
+          <div class="exercise-follow-layout">
+            <div class="exercise-video-frame">
+              <iframe
+                src="https://player.bilibili.com/player.html?isOutside=true&amp;aid=113825927925638&amp;bvid=BV1nrctekEhf&amp;cid=27863550319&amp;p=1&amp;high_quality=1&amp;danmaku=0"
+                title="预防脊柱侧弯形体操（嘉兴市实验小学版）"
+                loading="lazy"
+                referrerpolicy="no-referrer-when-downgrade"
+                allow="autoplay; fullscreen; picture-in-picture"
+                allowfullscreen></iframe>
+            </div>
+            <div class="exercise-follow-copy">
+              <span>校园护脊体操</span>
+              <h3>预防脊柱侧弯形体操</h3>
+              <p>嘉兴市实验小学版</p>
+              <dl><div><dt>类型</dt><dd>全身形体跟练</dd></div><div><dt>时长</dt><dd>4 分 58 秒</dd></div><div><dt>来源</dt><dd>哔哩哔哩</dd></div></dl>
+              <div class="exercise-follow-caution">跟练中如出现疼痛、头晕或明显不适，请立即停止并告知家长或老师。</div>
+              <a class="ghost exercise-video-link" href="https://www.bilibili.com/video/BV1nrctekEhf/" target="_blank" rel="noopener noreferrer">在哔哩哔哩打开</a>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section id="school" class="tab-page" data-role="admin">
+        <div class="page-heading">
+          <p class="eyebrow hero-badge">Risk Center</p>
+          <h1>风险中心</h1>
+          <p>集中查看最新风险评估，优先处理红色和黄色风险学生。</p>
+        </div>
+        <div class="metrics-grid admin-risk-metrics" id="admin-risk-metrics"></div>
+        <section class="panel">
+          <div class="admin-table-toolbar"><div><h2>风险学生名单</h2><p>根据近期坐姿表现综合评估风险等级和分数。</p></div><div class="admin-filter-group"><button class="active" data-risk-filter="all" type="button">全部</button><button data-risk-filter="red" type="button">红色</button><button data-risk-filter="yellow" type="button">黄色</button><button data-risk-filter="green" type="button">绿色</button></div><label class="admin-search"><span>搜索</span><input id="admin-risk-search" type="search" placeholder="学生编号或班级"></label></div>
+          <div id="admin-risk-table" class="admin-data-table"></div>
+        </section>
+        <section class="panel admin-risk-change-panel">
+          <div class="panel-title"><div><h2 id="admin-risk-change-title">风险变化</h2><p id="admin-risk-change-note">观察新增风险、风险下降和持续关注学生。</p></div><span id="admin-risk-change-badge" class="capability-badge ready">近期动态</span></div>
+          <div id="admin-risk-change-grid" class="admin-change-grid"><div><span>今日新增风险</span><strong>--</strong><small>缺少评估历史接口</small></div><div><span>风险下降</span><strong>--</strong><small>缺少前后状态对比</small></div><div><span>连续一周异常</span><strong>--</strong><small>风险列表未返回连续天数</small></div></div>
+        </section>
+      </section>
+
+      <section id="devices" class="tab-page" data-role="admin">
+        <div class="page-heading">
+          <p class="eyebrow hero-badge">Device Matrix</p>
+          <h1>设备管理</h1>
+          <p>查看设备在线、电量和上传状态，并使用现有绑定接口更换学生。</p>
+        </div>
+        <div class="metrics-grid" id="admin-device-metrics"></div>
+        <section class="panel">
+          <div class="admin-table-toolbar"><div><h2>设备列表</h2><p>绑定学生通过学生最新遥测反向匹配；无遥测设备可能无法显示归属。</p></div><label class="admin-search"><span>搜索</span><input id="admin-device-search" type="search" placeholder="设备或学生编号"></label></div>
+          <div id="admin-device-table" class="admin-data-table"></div>
+        </section>
+      </section>
+
+      <section id="admin-reports" class="tab-page" data-role="admin">
+        <div class="page-heading">
+          <p class="eyebrow hero-badge">Report Center</p>
+          <h1>报告中心</h1>
+          <p>分析班级群体坐姿趋势，形成面向班主任的管理建议，并导出风险学生档案。</p>
+        </div>
+        <div class="admin-report-grid admin-report-actions">
+          <section class="panel admin-export-panel">
+            <div class="panel-title"><div><h2>风险学生异常记录</h2><p>按风险等级和日期范围整理学生坐姿记录。</p></div></div>
+            <div class="admin-risk-export-form">
+              <label><span>风险等级</span><select id="admin-risk-export-level" aria-label="导出风险等级"><option value="red" selected>红色风险</option><option value="yellow">黄色风险</option><option value="green">绿色风险</option><option value="all">全部风险</option></select></label>
+              <label><span>开始日期</span><input id="admin-export-from" type="date"></label>
+              <label><span>结束日期</span><input id="admin-export-to" type="date"></label>
+              <button class="primary" data-admin-export="risk" type="button">生成并下载 ZIP</button>
+            </div>
+            <div class="admin-export-contract"><span>导出内容</span><strong>风险学生 ZIP 档案</strong><p>每名符合条件的学生对应一个 Excel，内容为选定日期内的非标准坐姿记录。</p></div>
+          </section>
+          <section class="panel admin-class-report-panel">
+            <div class="panel-title"><div><h2>班级坐姿分析报告</h2><p>汇总班级整体表现、趋势变化和重点管理事项。</p></div></div>
+            <div class="admin-report-form"><label><span>分析班级</span><select id="admin-report-class"></select></label><button id="admin-generate-report" class="primary" type="button">生成班级报告</button></div>
+            <div class="admin-class-report-scope">
+              <div><span>分析维度</span><strong>整体趋势 · 异常构成 · 风险分层</strong></div>
+              <div><span>报告用途</span><strong>课堂管理与重点学生观察</strong></div>
+            </div>
+          </section>
+        </div>
+        <section id="admin-report-preview" class="panel admin-report-preview admin-class-report-output"><div class="admin-report-welcome"><strong>班级报告尚未生成</strong><span>选择班级后生成整体坐姿分析与班主任建议。</span></div></section>
+      </section>
+    </main>
+  </div>
+
+  <div id="admin-detail-modal" class="admin-detail-modal hidden" role="dialog" aria-modal="true" aria-labelledby="admin-detail-title">
+    <div class="admin-detail-card"><button class="admin-detail-close" data-admin-action="close-detail" type="button" aria-label="关闭">×</button><div id="admin-detail-content"></div></div>
+  </div>
+
+  <div id="focus-mode" class="focus-mode hidden" aria-live="polite">
+    <div class="focus-topbar">
+      <div><span class="focus-live-dot"></span><strong>专注种树</strong></div>
+      <div><span>设备在线</span><strong id="focus-clock">00:00</strong></div>
+    </div>
+    <div id="focus-tree-canvas" class="focus-tree-canvas" aria-label="随坐姿变化的专注小树"></div>
+    <div class="focus-message">
+      <strong id="focus-posture">当前坐姿良好，继续保持</strong>
+      <span id="focus-guidance">树叶正在阳光中舒展开</span>
+    </div>
+    <div class="focus-metrics">
+      <div><span>本次专注</span><strong id="focus-elapsed">00:00</strong></div>
+      <div><span>剩余时间</span><strong id="focus-correct">15:00</strong></div>
+      <div><span>今日正确</span><strong id="focus-daily">26 分钟</strong></div>
+      <div><span>今日提醒</span><strong id="focus-reminders">3 次</strong></div>
+    </div>
+    <div id="focus-milestone" class="focus-milestone">专注计时仅保存在本机，不改变后端成长与资源。</div>
+    <div class="focus-actions">
+      <button id="focus-pause" class="ghost" type="button">暂停专注</button>
+      <button id="focus-end" class="primary" type="button">提前结束</button>
+    </div>
+    <div id="focus-limit-modal" class="focus-limit-modal hidden" role="dialog" aria-modal="true" aria-labelledby="focus-limit-title">
+      <div class="focus-limit-card">
+        <span>🌿</span>
+        <h2 id="focus-limit-title">本轮专注已完成</h2>
+        <p>本地计时已结束，不会发起后端结算，建议起身活动和远眺。</p>
+        <div><button class="ghost" data-focus-limit-action="rest" type="button">结束并休息</button><button class="primary" data-focus-limit-action="again" type="button">再开一轮</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="exercise-guide-mode" class="exercise-guide-mode hidden" role="dialog" aria-modal="true" aria-labelledby="exercise-guide-title">
+    <div class="exercise-guide-topbar">
+      <div><span class="exercise-guide-dot"></span><strong>护脊动作引导</strong></div>
+      <button id="exercise-guide-close" class="ghost small" type="button">结束引导</button>
+    </div>
+    <div class="exercise-guide-stage">
+      <div id="exercise-guide-visual" class="exercise-visual exercise-visual-large" aria-hidden="true"></div>
+      <div class="exercise-guide-copy">
+        <p id="exercise-guide-progress" class="eyebrow">动作 1 / 3</p>
+        <h2 id="exercise-guide-title">猫式呼吸</h2>
+        <p id="exercise-guide-step">跟随示意缓慢完成动作。</p>
+        <strong id="exercise-guide-clock">00:45</strong>
+        <div class="exercise-guide-track"><span id="exercise-guide-fill"></span></div>
+        <small>请在安全空间内练习；感到疼痛、眩晕或明显不适时立即停止。</small>
+      </div>
+    </div>
+    <div class="exercise-guide-actions">
+      <button id="exercise-guide-prev" class="ghost" type="button">上一步</button>
+      <button id="exercise-guide-toggle" class="primary" type="button">暂停</button>
+      <button id="exercise-guide-next" class="ghost" type="button">下一动作</button>
+    </div>
+  </div>
+
+  <div id="exercise-finish-modal" class="exercise-finish-modal hidden" role="dialog" aria-modal="true">
+    <div>
+      <span>🌿</span>
+      <h2>本次护脊引导结束</h2>
+      <p>已完成动作学习。小树舒展了叶片——这是本地视觉反馈，不代表正式任务完成，也没有发放资源或成长值。</p>
+      <button id="exercise-finish-return" class="primary" type="button">返回训练中心</button>
+    </div>
+  </div>
+
+  <div id="garden-toast" class="garden-toast hidden" role="status"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="config.js?v=20260716-report8"></script>
+  <script src="models.js?v=20260723-hardware1"></script>
+  <script src="mock-api.js?v=20260723-pairing1"></script>
+  <script src="api.js?v=20260723-pairing1"></script>
+  <script src="garden-service.js?v=20260716-report8"></script>
+  <script src="focus-timer.js?v=20260716-report8"></script>
+  <script src="admin-workspace.js?v=20260720-forest-names1"></script>
+  <script src="exercise-guide.js?v=20260716-report8"></script>
+  <script src="markdown-renderer.js?v=20260716-report8"></script>
+  <script src="app.js?v=20260723-pairing1"></script>
+</body>
+</html>

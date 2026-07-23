@@ -1,0 +1,7 @@
+{
+  "usingComponents": {},
+  "navigationBarTitleText": "脊小树 · 监测",
+  "navigationBarBackgroundColor": "#f8f9fc",
+  "navigationBarTextStyle": "black",
+  "enablePullDownRefresh": false
+}

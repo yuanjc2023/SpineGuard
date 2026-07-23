@@ -1,0 +1,29 @@
+<view class="container">
+  <view class="form-card">
+    <view class="field">
+      <text class="label">姓名</text>
+      <input class="input" value="{{form.name}}" placeholder="请输入孩子姓名" bindinput="onNameInput" />
+    </view>
+
+    <view class="field">
+      <text class="label">性别</text>
+      <picker range="{{genderOptions}}" value="{{genderIndex}}" bindchange="onGenderChange">
+        <view class="picker">{{form.gender}}</view>
+      </picker>
+    </view>
+
+    <view class="field">
+      <text class="label">年级</text>
+      <picker range="{{gradeOptions}}" value="{{gradeIndex}}" bindchange="onGradeChange">
+        <view class="picker">{{form.grade}} 年级</view>
+      </picker>
+    </view>
+
+    <view class="field">
+      <text class="label">班级</text>
+      <input class="input" value="{{form.className}}" placeholder="例如：三年级二班" bindinput="onClassInput" />
+    </view>
+  </view>
+
+  <view class="save-btn" loading="{{saving}}" bindtap="saveChildInfo" style="width: 245rpx; display: block; box-sizing: border-box">保存</view>
+</view>

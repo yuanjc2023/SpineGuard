@@ -1,0 +1,77 @@
+<view class="exercise-page">
+  <view class="exercise-hero">
+    <text class="eyebrow">SMART SPINE TRAINING</text>
+    <text class="hero-title">智能护脊训练</text>
+    <text class="hero-desc">依据已有坐姿遥测和统计生成规则推荐，仅用于动作学习，不判定完成、不发放奖励。</text>
+    <view class="reason-list"><text wx:for="{{reasons}}" wx:key="*this">✓ {{item}}</text></view>
+    <button class="hero-button" bindtap="startRecommended" disabled="{{!recommendations.length}}">开始推荐引导</button>
+  </view>
+
+  <view class="notice" wx:if="{{errorMessage}}">{{errorMessage}}</view>
+  <view class="section-card">
+    <view class="section-head"><view><text class="section-title">今日身体状态</text><text class="section-sub">{{loading ? '正在读取数据…' : '来自现有遥测、日统计和近期采样'}}</text></view><text class="rule-tag">数据规则</text></view>
+    <view class="metric-grid"><view class="metric" wx:for="{{metrics}}" wx:key="label"><text>{{item.label}}</text><text class="metric-value">{{item.value}}</text></view></view>
+    <view class="ai-box"><text class="ai-title">推荐依据</text><text class="ai-text">{{aiText}}</text></view>
+  </view>
+
+  <view class="section-card">
+    <view class="section-head"><view><text class="section-title">今日推荐</text></view></view>
+    <view class="recommend-card {{selected.id === item.id ? 'active' : ''}}" wx:for="{{recommendations}}" wx:key="id" data-id="{{item.id}}" bindtap="selectExercise">
+      <view class="mini-visual pose-{{item.pose}}"><view class="person-head"></view><view class="person-body"></view><view class="person-arm"></view><view class="person-leg"></view></view>
+      <view class="recommend-copy"><text class="recommend-score">推荐 {{item.score}}% · {{item.level}}</text><text class="recommend-name">{{item.name}}</text><text class="recommend-target">{{item.target}} · {{item.durationSeconds}}秒</text></view><text class="chevron">›</text>
+    </view>
+  </view>
+
+  <view class="section-card detail-card">
+    <view class="detail-visual"><view class="large-visual pose-{{selected.pose}}"><view class="person-head"></view><view class="person-body"></view><view class="person-arm arm-two"></view><view class="person-leg leg-two"></view></view><text>{{selected.category}} · {{selected.level}}</text></view>
+    <text class="detail-name">{{selected.name}}</text><text class="detail-summary">{{selected.target}} · {{selected.suggestion}}</text>
+    <view class="step" wx:for="{{selected.steps}}" wx:key="*this"><text>{{index + 1}}</text><text class="step-copy">{{item}}</text></view>
+    <view class="caution"><text class="caution-title">注意事项</text><text>{{selected.caution}}</text></view>
+    <button class="start-button" bindtap="startSelected">开始动作引导</button>
+  </view>
+
+  <view class="section-card">
+    <view class="section-head"><view><text class="section-title">护脊动作知识库</text></view></view>
+    <scroll-view scroll-x class="category-scroll"><view class="category-row"><text class="category {{activeCategory === item ? 'active' : ''}}" wx:for="{{categories}}" wx:key="*this" data-category="{{item}}" bindtap="selectCategory">{{item}}</text></view></scroll-view>
+    <view class="library-grid"><view class="library-card" wx:for="{{library}}" wx:key="id" data-id="{{item.id}}" bindtap="selectExercise"><view class="mini-visual pose-{{item.pose}}"><view class="person-head"></view><view class="person-body"></view><view class="person-arm"></view><view class="person-leg"></view></view><text class="library-category">{{item.category}}</text><text class="library-name">{{item.name}}</text><text class="library-target">{{item.target}}</text></view></view>
+  </view>
+
+  <view class="section-card">
+    <view class="section-head"><view><text class="section-title">7日护脊引导计划</text></view></view>
+    <view class="plan-row"><view class="plan-day {{item.guided ? 'guided' : ''}}" wx:for="{{planDays}}" wx:key="date"><text>{{item.label}}</text><text class="plan-status">{{item.guided ? '✓' : '○'}}</text><text class="plan-date">{{item.shortDate}}</text></view></view>
+  </view>
+
+  <view class="section-card">
+    <view class="section-head"><view><text class="section-title">最近查看 / 最近引导</text></view></view>
+    <view class="recent-empty" wx:if="{{!recent.length}}">还没有本地记录</view>
+    <view class="recent-item" wx:for="{{recent}}" wx:key="time" data-id="{{item.id}}" bindtap="selectExercise"><text>{{item.type}}</text><text class="recent-name">{{item.names}}</text><text class="recent-time">{{item.time}}</text></view>
+  </view>
+
+  <view class="section-card follow-card">
+    <view class="section-head">
+      <view><text class="section-title">护脊运动跟练</text><text class="section-sub">校园形体操视频 · 请在安全空间练习</text></view>
+      <text class="video-source">{{followAlongVideo.source}}</text>
+    </view>
+    <view class="follow-cover">
+      <view class="follow-glow"></view>
+      <view class="follow-figure"><view class="follow-head"></view><view class="follow-body"></view><view class="follow-arm left"></view><view class="follow-arm right"></view><view class="follow-leg left"></view><view class="follow-leg right"></view></view>
+      <view class="play-mark"><text>▶</text></view>
+      <text class="follow-badge">跟练视频</text>
+    </view>
+    <text class="follow-title">{{followAlongVideo.title}}</text>
+    
+    
+    <button class="follow-button" bindtap="openFollowAlongVideo">复制链接，前往 B 站跟练</button>
+  </view>
+
+  <view class="guide-overlay" wx:if="{{guideActive}}">
+    <view class="guide-top"><text>动作 {{guideIndex + 1}} / {{guideIds.length}}</text><button bindtap="closeGuide">结束引导</button></view>
+    <view class="guide-visual"><view class="large-visual pose-{{guideItem.pose}}"><view class="person-head"></view><view class="person-body"></view><view class="person-arm arm-two"></view><view class="person-leg leg-two"></view></view></view>
+    <text class="guide-name">{{guideItem.name}}</text><text class="guide-step">{{guideStep}}</text><text class="guide-clock">{{guideClock}}</text>
+    <view class="guide-track"><view style="width: {{guideProgress}}%;"></view></view>
+    <text class="guide-safe">请在安全空间练习；疼痛、眩晕或明显不适时立即停止。</text>
+    <view class="guide-actions"><button bindtap="previousGuide" disabled="{{guideIndex === 0}}">上一步</button><button class="primary" bindtap="toggleGuide">{{guideRunning ? '暂停' : '继续'}}</button><button bindtap="nextGuide">{{guideIndex === guideIds.length - 1 ? '完成引导' : '下一动作'}}</button></view>
+  </view>
+
+  <view class="garden-feedback" wx:if="{{gardenFeedback}}" bindtap="closeGardenFeedback"><text>🌿</text><text class="feedback-title">小树舒展了叶片</text><text class="feedback-copy">本次训练引导结束 · 仅为本地视觉反馈</text></view>
+</view>

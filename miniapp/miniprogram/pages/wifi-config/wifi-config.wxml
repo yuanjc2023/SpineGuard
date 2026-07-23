@@ -1,0 +1,4 @@
+<web-view
+  src="{{wifiConfigUrl}}"
+  binderror="onWebViewError"
+></web-view>

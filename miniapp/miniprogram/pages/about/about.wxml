@@ -1,0 +1,42 @@
+<view class="container">
+  <view class="brand-card">
+    <view class="brand-mark">脊</view>
+    <text class="name">{{productName}}</text>
+    <text class="version">{{version}}</text>
+    <text class="desc">帮助孩子养成更健康的坐姿习惯，提供实时提醒、数据趋势和成长激励。</text>
+  </view>
+
+  <view class="team-card">
+    <view class="team-heading">
+      <text class="team-title">三头六臂队</text>
+      <text class="team-subtitle">跨端协作，共同守护健康坐姿</text>
+    </view>
+
+    <view class="member-row">
+      <view class="member-avatar">王</view>
+      <view class="member-info">
+        <text class="member-name">王羽飞</text>
+        <text class="member-role">后端架构 · 接口开发</text>
+      </view>
+    </view>
+
+    <view class="member-row">
+      <view class="member-avatar">袁</view>
+      <view class="member-info">
+        <text class="member-name">袁佳纯</text>
+        <text class="member-role">嵌入式开发 · 传感器集成</text>
+      </view>
+    </view>
+
+    <view class="member-row">
+      <view class="member-avatar">石</view>
+      <view class="member-info">
+        <text class="member-name">石钰婷</text>
+        <text class="member-role">前端开发 · 交互设计</text>
+      </view>
+    </view>
+  </view>
+
+  <text class="copyright">Copyright © 2026 三头六臂队</text>
+
+</view>

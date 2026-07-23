@@ -1,0 +1,170 @@
+<view class="garden-page">
+  <view class="api-notice" wx:if="{{errorMessage}}">{{errorMessage}}</view>
+  <view class="hero-card {{posture.treeClass}} {{severityClass}} {{recoveryNeeded ? 'recovery-needed' : ''}}">
+    <view class="hero-top">
+      <view>
+        <text class="eyebrow">我的护脊乐园</text>
+        <view class="stage-title">{{stage.icon}} {{stage.name}}</view>
+      </view>
+      <view class="stage-badge">{{stage.description}}</view>
+    </view>
+
+    <view class="tree-scene">
+      <view class="weather-icon">{{posture.icon}}</view>
+      <view class="tree-visual stage-{{stage.key}}">
+        <view class="seed-shell"></view>
+        <view class="sprout-stem"></view>
+        <view class="sprout-leaf leaf-left"></view>
+        <view class="sprout-leaf leaf-right"></view>
+        <view class="tree-crown crown-small"></view>
+        <view class="tree-crown crown-main"></view>
+        <view class="tree-crown crown-side"></view>
+        <view class="tree-trunk"></view>
+        <view class="tree-flower flower-one">✿</view>
+        <view class="tree-flower flower-two">✿</view>
+        <view class="tree-flower flower-three">✿</view>
+        <view class="tree-fruit fruit-one">●</view>
+        <view class="tree-fruit fruit-two">●</view>
+        <view class="tree-fruit fruit-three">●</view>
+        <view class="tree-ground"></view>
+      </view>
+    </view>
+
+    <view class="status-box">
+      <text class="status-name">{{posture.name}}</text>
+      <text class="status-message">{{posture.message}}</text>
+    </view>
+
+    <view class="growth-row">
+      <text>成长值 {{growth}}</text>
+      <text>{{stageProgress}}%</text>
+    </view>
+    <view class="progress-track"><view class="progress-fill" style="width: {{stageProgress}}%;"></view></view>
+    <text class="next-stage">{{nextStageText}}</text>
+    <text class="rule-version"></text>
+  </view>
+
+  <view class="resource-card">
+    <view class="resource-item">
+      <text class="resource-icon sun">☀️</text><text class="resource-value">{{sunshine}}</text><text class="resource-label">阳光</text>
+    </view>
+    <view class="resource-divider"></view>
+    <view class="resource-item">
+      <text class="resource-icon water">💧</text><text class="resource-value">{{water}}</text><text class="resource-label">水滴</text>
+    </view>
+    <view class="resource-divider"></view>
+    <view class="resource-item">
+      <text class="resource-icon nutrition">🌱</text><text class="resource-value">{{nutrition}}</text><text class="resource-label">营养</text>
+    </view>
+  </view>
+
+  <view class="section-card action-card">
+    <view class="section-header">
+      <view><text class="section-title">照顾小树</text><text class="section-subtitle">消耗资源，推动成长</text></view>
+    </view>
+    <view class="action-grid">
+      <view class="action-button sun-button {{!backendAvailable || busyAction ? 'disabled' : ''}}" hover-class="action-button-active" data-action="sunshine" bindtap="useResource">
+        <view class="action-icon-badge"><text class="action-icon">☀️</text></view>
+        <text class="action-name">晒太阳</text>
+        <text class="action-meta">消耗 3 · 成长 +10</text>
+      </view>
+      <view class="action-button water-button {{!backendAvailable || busyAction ? 'disabled' : ''}}" hover-class="action-button-active" data-action="water" bindtap="useResource">
+        <view class="action-icon-badge"><text class="action-icon">💧</text></view>
+        <text class="action-name">浇水</text>
+        <text class="action-meta">消耗 5 · 成长 +15</text>
+      </view>
+      <view class="action-button food-button {{!backendAvailable || busyAction ? 'disabled' : ''}}" hover-class="action-button-active" data-action="nutrition" bindtap="useResource">
+        <view class="action-icon-badge"><text class="action-icon">🌱</text></view>
+        <text class="action-name">施肥</text>
+        <text class="action-meta">消耗 3 · 成长 +30</text>
+      </view>
+      <view class="action-button recover-button {{!backendAvailable || busyAction || !canRecover ? 'disabled' : ''}}" hover-class="action-button-active" data-action="recover_tree" bindtap="useResource">
+        <view class="action-icon-badge"><text class="action-icon">🍃</text></view>
+        <text class="action-name">恢复小树</text>
+        <text class="action-meta">阳光 2 + 营养 3</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="section-card">
+    <view class="section-header">
+      <view><text class="section-title">今日任务</text><text class="section-subtitle">小目标也能带来大改变</text></view>
+      <text class="task-date">今日</text>
+    </view>
+    <view class="task-item" wx:for="{{tasks}}" wx:key="id" style="width: 649rpx; height: 77rpx; box-sizing: border-box">
+      <view class="task-check {{item.status === 'claimed' ? 'checked' : ''}}">{{item.status === 'claimed' ? '✓' : ''}}</view>
+      <view class="task-content">
+        <text class="task-title">{{item.title}}</text>
+      </view>
+      <view class="task-meta">
+        <text class="task-progress">{{item.progress}} / {{item.target}}{{item.unit}}</text>
+        <text class="task-reward">{{item.rewardText}}</text>
+      </view>
+      <view class="claim-button {{item.status !== 'claimable' ? 'claimed' : ''}}" disabled="{{!item.canClaim || !backendAvailable || busyAction}}" data-id="{{item.id}}" bindtap="claimTask">{{item.statusText}}</view>
+    </view>
+  </view>
+
+  <view class="section-card focus-card">
+    <view class="section-header">
+      <view><text class="section-title">专注模式</text></view>
+    </view>
+    <view class="focus-summary"><text>{{focusStatusText}}</text><text wx:if="{{focusSettlementText}}">{{focusSettlementText}}</text></view>
+    <view class="focus-targets" wx:if="{{!focus || focus.status === 'completed' || focus.status === 'cancelled'}}">
+
+  <view
+    class="focus-target"
+    wx:for="{{focusTargets}}"
+    wx:key="*this"
+    data-minutes="{{item}}"
+    disabled="{{busyAction}}"
+    bindtap="startFocus"
+  >
+  {{item}} 分钟
+  </view>
+
+    </view>
+    <view class="focus-targets" wx:else>
+      <button class="study-button focus-enter-button" disabled="{{busyAction}}" bindtap="openFocus">{{focus.status === 'paused' ? '进入页面继续专注' : '进入专注模式'}}</button>
+    </view>
+  </view>
+
+  <view class="section-card training-entry" bindtap="goToAiAssistant">
+    <view class="training-mark">AI</view>
+    <view class="training-copy">
+      <text class="section-title">AI 坐姿建议助手</text>
+      <text class="section-subtitle">结合今日坐姿数据，获取简洁分析与个性化护脊建议</text>
+      <text class="training-boundary">支持坐姿数据问答 · 建议仅供健康参考</text>
+    </view>
+    <text class="training-arrow">›</text>
+  </view>
+
+  <view class="section-card demo-card" wx:if="{{quickTestEnabled}}">
+    <view class="section-header">
+      <view><text class="section-title">开发快速测试</text><text class="section-subtitle">仅改变 Mock，不产生正式奖励</text></view>
+    </view>
+    <view class="posture-options">
+      <view class="posture-chip {{postureCode === item.key ? 'active' : ''}}" wx:for="{{postureOptions}}" wx:key="key" data-key="{{item.key}}" bindtap="selectPosture">{{item.label}}</view>
+    </view>
+    <view class="posture-options quick-stages">
+      <view class="posture-chip" wx:for="{{stageOptions}}" wx:key="key" data-scenario="stage:{{item.key}}" bindtap="runQuickScenario">{{item.label}}</view>
+    </view>
+    <button class="study-button" data-scenario="tasks" bindtap="runQuickScenario">一键达成全部任务</button>
+    <button class="study-button" data-scenario="resources" bindtap="runQuickScenario">资源补充到 99</button>
+    <view class="posture-options quick-stages">
+      <view class="posture-chip" data-scenario="tree:left_lean:mild" bindtap="runQuickScenario">异常 29 秒</view>
+      <view class="posture-chip" data-scenario="tree:left_lean:warning" bindtap="runQuickScenario">异常 30 秒</view>
+      <view class="posture-chip" data-scenario="tree:left_lean:severe" bindtap="runQuickScenario">异常 60 秒</view>
+      <view class="posture-chip" data-scenario="tree:unknown:timeout" bindtap="runQuickScenario">未知超时</view>
+      <view class="posture-chip" data-scenario="tree:offline" bindtap="runQuickScenario">设备离线</view>
+      <view class="posture-chip" data-scenario="tree:normal" bindtap="runQuickScenario">设备恢复</view>
+      <view class="posture-chip" data-scenario="tree:normal:recovery" bindtap="runQuickScenario">待恢复</view>
+    </view>
+    <button class="study-button" data-scenario="focus:complete:15" bindtap="runQuickScenario">模拟完成 15 分钟专注（无奖惩）</button>
+    <button class="study-button" data-scenario="rest:299" bindtap="runQuickScenario">主动休息 4:59（不发奖）</button>
+    <button class="study-button" data-scenario="rest:300" bindtap="runQuickScenario">主动休息 5:00（发奖）</button>
+    <button class="study-button" data-scenario="rest:900" bindtap="runQuickScenario">离座 15:00（结束设备会话）</button>
+    <button class="study-button" data-scenario="cap:179" bindtap="runQuickScenario">每日成长上限测试：179</button>
+    <button class="study-button" data-scenario="cap:180" bindtap="runQuickScenario">每日成长上限测试：180</button>
+    <button class="reset-button" data-scenario="reset" bindtap="runQuickScenario">重置演示数据</button>
+  </view>
+</view>

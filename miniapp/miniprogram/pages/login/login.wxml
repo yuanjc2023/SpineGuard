@@ -1,0 +1,21 @@
+<!-- miniprogram/pages/login/login.wxml -->
+<view class="container">
+  <view class="logo-area">
+  <image style="width: 185rpx; height: 154rpx; display: block; box-sizing: border-box" class="logo-image" src="/images/logo.jpg" mode="aspectFit" />
+  <text class="app-name">脊小树</text>
+  </view>
+
+  <view class="form">
+    <view class="input-group">
+      <text class="label">账号</text>
+      <input class="input" placeholder="请输入用户名" bindinput="onUsernameInput" value="{{username}}" />
+    </view>
+    <view class="input-group">
+      <text class="label">密码</text>
+      <input class="input" placeholder="请输入密码" password bindinput="onPasswordInput" value="{{password}}" />
+    </view>
+    <button class="login-btn" bindtap="doLogin" type="primary">连接后端并登录</button>
+    <button class="demo-btn" bindtap="useDemoDevice">先体验完整功能</button>
+    <view class="tip">本地测试账号：parent_demo / parent123</view>
+  </view>
+</view>

@@ -1,0 +1,165 @@
+<view class="container">
+  <view class="device-hero">
+    <view class="hero-top">
+      <view>
+        <text class="hero-label">当前设备</text>
+        <view class="device-title-row">
+          <text class="device-name">{{device.deviceCode}}</text>
+          <view class="connect-badge {{device.connected ? 'online' : 'offline'}}" style="position: relative; left: 278rpx; top: 0rpx">
+            <text style="position: relative; left: 0rpx; top: 0rpx">{{device.connected ? '设备在线' : '设备离线'}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+    <text class="device-nick">{{device.nickName}}</text>
+    <text class="device-config-sync">{{device.configSyncText}}</text>
+    <view class="device-meta">
+      <view class="meta-item">
+        <text class="meta-value">{{device.battery === '--' ? '--' : device.battery + '%'}}</text>
+        <text class="meta-label">电量</text>
+      </view>
+      <view class="meta-item">
+        <text class="meta-value">{{device.lastSync}}</text>
+        <text class="meta-label">最近同步</text>
+      </view>
+      <view class="meta-item">
+        <text class="meta-value">{{device.firmware}}</text>
+        <text class="meta-label">固件版本</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="section pairing-status-card" wx:if="{{pairingPending}}">
+    <view>
+      <text class="action-title">正在认领设备</text>
+      <text class="action-desc">{{pairingStatusText}}</text>
+    </view>
+    <button class="small-btn" bindtap="cancelPendingPairing">取消等待</button>
+  </view>
+
+  <view class="section wifi-config-section">
+    <view class="wifi-config-row">
+      <view class="wifi-config-copy">
+        <text class="action-title">Wi-Fi 配网</text>
+        <text class="action-desc">连接设备热点后，打开 192.168.4.1 配置网络</text>
+      </view>
+      <button class="wifi-connect-btn" bindtap="openWifiConfig">连接</button>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="action-row" bindtap="calibratePosture">
+      <view>
+        <text class="action-title">坐姿校准</text>
+        <text class="action-desc">让孩子保持标准坐姿 3 秒后校准</text>
+      </view>
+      <text class="action-arrow">></text>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="section-header">
+      <text>震动提醒设置</text>
+    </view>
+    
+    <view class="setting-row">
+      <view>
+        <text class="setting-title">震动提醒</text>
+        
+      </view>
+      <switch checked="{{vibrationEnabled}}" disabled="{{!backendControlAvailable}}" bindchange="toggleVibration" />
+    </view>
+    <picker mode="selector" range="{{triggerOptions}}" value="{{triggerIndex}}" disabled="{{!backendControlAvailable}}" bindchange="onTriggerChange">
+      <view class="setting-row">
+        <text class="setting-title">触发时间</text>
+        <text class="setting-value">{{triggerText}}</text>
+      </view>
+    </picker>
+    <picker mode="selector" range="{{strengthOptions}}" value="{{strengthIndex}}" disabled="{{!backendControlAvailable}}" bindchange="onStrengthChange">
+      <view class="setting-row">
+        <text class="setting-title">震动强度</text>
+        <text class="setting-value">{{strengthText}}</text>
+      </view>
+    </picker>
+    <picker mode="selector" range="{{intervalOptions}}" value="{{intervalIndex}}" disabled="{{!backendControlAvailable}}" bindchange="onIntervalChange">
+      <view class="setting-row">
+        <text class="setting-title">提醒间隔</text>
+        <text class="setting-value">{{intervalText}}</text>
+      </view>
+    </picker>
+  </view>
+
+  <view class="section">
+    <view class="section-header">
+      <text>学习模式</text>
+      <switch checked="{{studyModeEnabled}}" disabled="{{!backendControlAvailable}}" bindchange="toggleStudyMode" />
+    </view>
+    <text class="section-tip">开启后，仅在持续不良坐姿时轻微震动，减少学习打扰。</text>
+    <picker mode="selector" range="{{studyDurationOptions}}" value="{{studyDurationIndex}}" disabled="{{!backendControlAvailable}}" bindchange="onStudyDurationChange">
+      <view class="setting-row">
+        <text class="setting-title">学习时长</text>
+        <text class="setting-value">{{studyDurationText}}</text>
+      </view>
+    </picker>
+    <view class="setting-row">
+      <text class="setting-title">休息提醒</text>
+      <switch checked="{{restReminderEnabled}}" disabled="{{!backendControlAvailable}}" bindchange="toggleRestReminder" />
+    </view>
+    <view class="setting-row">
+      <text class="setting-title">眼保健操提醒</text>
+      <switch checked="{{eyeExerciseEnabled}}" disabled="{{!backendControlAvailable}}" bindchange="toggleEyeExercise" />
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="section-header">
+      <text>免打扰模式</text>
+      <switch checked="{{quietModeEnabled}}" disabled="{{!backendControlAvailable}}" bindchange="toggleQuietMode" />
+    </view>
+    <text class="section-tip">该时段关闭震动和声音提醒，仅记录数据。</text>
+    <view class="time-grid">
+      <picker mode="time" value="{{quietStart}}" disabled="{{!backendControlAvailable}}" bindchange="onQuietStartChange">
+        <view class="time-box">
+          <text class="time-label">开始</text>
+          <text class="time-value">{{quietStart}}</text>
+        </view>
+      </picker>
+      <picker mode="time" value="{{quietEnd}}" disabled="{{!backendControlAvailable}}" bindchange="onQuietEndChange">
+        <view class="time-box">
+          <text class="time-label">结束</text>
+          <text class="time-value">{{quietEnd}}</text>
+        </view>
+      </picker>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="section-header">
+      <text>设备自检</text>
+      <view class="small-btn" loading="{{checking}}" bindtap="runSelfCheck" style="width: 124rpx; display: block; box-sizing: border-box; height: 66rpx">一键自检</view>
+    </view>
+    <view class="check-row" wx:for="{{selfCheckItems}}" wx:key="name">
+      <text>{{item.name}}</text>
+      <text class="check-ok">{{item.status}}</text>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="action-row" bindtap="upgradeFirmware">
+      <view>
+        <text class="action-title">固件升级</text>
+        <text class="action-desc">检查设备固件版本和升级状态</text>
+      </view>
+      <text class="action-arrow">></text>
+    </view>
+    <view class="action-row" bindtap="changeDevice">
+      <view>
+        <text class="action-title">更换设备</text>
+        <text class="action-desc">从设备热点自动读取，或手动输入编号和六位认领码</text>
+      </view>
+      <text class="action-arrow">></text>
+    </view>
+  </view>
+
+  <button class="danger-btn" bindtap="unbindDevice">{{backendControlAvailable ? '退出体验模式' : '查看解绑说明'}}</button>
+</view>

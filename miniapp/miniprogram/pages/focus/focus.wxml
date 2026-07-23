@@ -1,0 +1,71 @@
+<view class="focus-page {{posture.treeClass}}">
+  <view class="focus-intro">
+    <view>
+      <text class="focus-eyebrow">专注学习</text>
+
+    </view>
+    <view class="connection-pill {{deviceConnected ? 'online' : 'offline'}}">
+      <view class="connection-dot"></view>
+      <text>{{connectionText}}</text>
+    </view>
+  </view>
+
+  <view class="timer-card">
+    <text class="timer-label">剩余时间</text>
+    <text class="timer-value">{{remainingText}}</text>
+    <view class="timer-progress"><view class="timer-progress-fill" style="width: {{progressPercent}}"></view></view>
+    <view class="timer-meta-row">
+      <view class="timer-meta"><text class="meta-value">{{elapsedText}}</text><text class="meta-label">已专注</text></view>
+      <view class="meta-divider"></view>
+      <view class="timer-meta"><text class="meta-value">{{targetText}}</text><text class="meta-label">目标时长</text></view>
+      <view class="meta-divider"></view>
+      <view class="timer-meta"><text class="meta-value status-value">{{timerStatusText}}</text><text class="meta-label">计时状态</text></view>
+    </view>
+  </view>
+
+  <view class="tree-card">
+    <view class="tree-card-heading">
+      <view><text class="tree-title">{{stage.name}}陪你专注</text><text class="tree-subtitle">小树形态会影响坐姿哦</text></view>
+      <text class="posture-icon">{{posture.icon}}</text>
+    </view>
+    <view class="tree-stage">
+      <view class="ambient-circle circle-one"></view>
+      <view class="ambient-circle circle-two"></view>
+      <view class="tree-scale">
+        <view class="tree-visual stage-{{stage.key}}">
+          <view class="seed-shell"></view>
+          <view class="sprout-stem"></view>
+          <view class="sprout-leaf leaf-left"></view>
+          <view class="sprout-leaf leaf-right"></view>
+          <view class="tree-crown crown-small"></view>
+          <view class="tree-crown crown-main"></view>
+          <view class="tree-crown crown-side"></view>
+          <view class="tree-trunk"></view>
+          <view class="tree-flower flower-one">✿</view>
+          <view class="tree-flower flower-two">✿</view>
+          <view class="tree-flower flower-three">✿</view>
+          <view class="tree-fruit fruit-one">●</view>
+          <view class="tree-fruit fruit-two">●</view>
+          <view class="tree-fruit fruit-three">●</view>
+          <view class="tree-ground"></view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="posture-card">
+    <view class="posture-main">
+      <view class="posture-badge">{{posture.icon}}</view>
+      <view class="posture-copy"><text class="posture-name">{{posture.name}}</text><text class="posture-message">{{posture.message}}</text></view>
+    </view>
+      <view class="indicator"><text class="indicator-value">{{batteryText}}</text><text class="indicator-label">设备电量</text></view>
+      <view class="indicator indicator-wide"><text class="indicator-value balance-value">{{balanceText}}</text><text class="indicator-label">五点压力状态</text>
+    </view>
+    <text class="sync-hint">{{syncText}}</text>
+  </view>
+
+  <view class="focus-actions">
+    <view class="pause-button" disabled="{{busy || !focus || focus.status === 'completed'}}" bindtap="toggleFocus">{{focus.status === 'paused' ? '继续专注' : '暂停计时'}}</view>
+    <view class="end-button" disabled="{{busy || !focus}}" bindtap="endFocus">结束专注</view>
+  </view>
+</view>
