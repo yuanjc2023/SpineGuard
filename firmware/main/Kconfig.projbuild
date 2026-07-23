@@ -1,31 +1,89 @@
-menu "SpineGuard"
+menu "SpineGuard LGBM firmware"
 
-config SPINEGUARD_WIFI_SSID
-    string "Wi-Fi SSID"
-    default "hust1234"
+config SPINEGUARD_FIRMWARE_VERSION
+    string "Firmware version"
+    default "0.5.0-device-management"
 
-config SPINEGUARD_WIFI_PASSWORD
-    string "Wi-Fi password"
-    default "123456789"
-
-config SPINEGUARD_BACKEND_URL
-    string "Telemetry API URL"
-    default "http://10.12.173.179:8000/api/v1/device/telemetry"
-
-config SPINEGUARD_DEVICE_TOKEN
-    string "Device token"
-    default "dev-token"
-
-config SPINEGUARD_DEVICE_ID
-    string "Device ID"
-    default "SG-0001"
+config SPINEGUARD_BACKEND_BASE_URL
+    string "Default backend base URL"
+    default "http://192.168.1.100:8000/api/v1"
+    help
+        Fallback address before a different URL is saved through the setup page.
+        Use the base path ending at /api/v1.
 
 config SPINEGUARD_SNTP_SERVER
     string "SNTP server"
     default "pool.ntp.org"
 
-config SPINEGUARD_VIBRATION_ENABLED
-    bool "Enable vibration reminders"
-    default n
+config SPINEGUARD_WIFI_MAX_RETRY
+    int "Wi-Fi reconnect attempts before setup AP"
+    range 1 100
+    default 10
+
+config SPINEGUARD_TELEMETRY_INTERVAL_MS
+    int "Telemetry upload interval (ms)"
+    range 500 60000
+    default 2000
+
+config SPINEGUARD_DEVICE_CONFIG_POLL_INTERVAL_MS
+    int "Remote device configuration poll interval (ms)"
+    range 1000 60000
+    default 5000
+
+config SPINEGUARD_REGISTRATION_RETRY_INTERVAL_MS
+    int "Device registration retry interval (ms)"
+    range 10000 300000
+    default 60000
+
+config SPINEGUARD_POWER_SOURCE
+    string "Current power source label"
+    default "power_bank"
+
+config SPINEGUARD_SETUP_AP_PASSWORD
+    string "Setup AP password"
+    default "spineguard"
+    help
+        At least 8 characters for WPA2. The AP is named with the MAC-derived id.
+
+config SPINEGUARD_VIBRATION_DEFAULT_ENABLED
+    bool "Enable vibration by default"
+    default y
+
+config SPINEGUARD_REMINDER_TRIGGER_DEFAULT_S
+    int "Default bad-posture trigger duration (s)"
+    range 5 3600
+    default 300
+
+config SPINEGUARD_REMINDER_DURATION_DEFAULT_S
+    int "Default vibration duration (s)"
+    range 1 120
+    default 30
+
+config SPINEGUARD_REMINDER_COOLDOWN_DEFAULT_S
+    int "Default repeated-reminder cooldown (s)"
+    range 30 7200
+    default 600
+
+config SPINEGUARD_REMINDER_INTENSITY_DEFAULT_PERCENT
+    int "Default vibration intensity (%)"
+    range 1 100
+    default 70
+
+config SPINEGUARD_VIBRATION_MAX_PERCENT
+    int "Maximum allowed PWM duty (%)"
+    range 20 100
+    default 70
+    help
+        The current 1027 motors may be rated below the 5 V VM rail. Keep this
+        limit conservative until the actual motor voltage/current is verified.
+
+config SPINEGUARD_MOTOR_PWM_FREQUENCY_HZ
+    int "Motor PWM frequency (Hz)"
+    range 1000 40000
+    default 20000
+
+config SPINEGUARD_MOTOR_SELF_TEST
+    bool "Run four-motor self-test at boot"
+    default y
 
 endmenu

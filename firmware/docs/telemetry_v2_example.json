@@ -1,0 +1,94 @@
+{
+  "protocol_version": 2,
+  "device_id": "SG-A8D738",
+  "device_name": "我的学习椅",
+  "session_id": "SG-A8D738-1784772000123-7F2A91C4-1",
+  "seq": 128,
+  "timestamp_ms": 1784772326000,
+  "occupied": true,
+  "ratio_valid": true,
+  "posture": "left_lean",
+  "confidence": 0.8234,
+  "recognition_source": "lightgbm",
+  "model_version": "spineguard_lightgbm_fsr_tof_v2",
+  "pressure": {
+    "left": 280,
+    "right": 200,
+    "front": 140,
+    "back": 170,
+    "center": 210
+  },
+  "raw_pressure": {
+    "left": 2841,
+    "right": 2630,
+    "front": 2509,
+    "back": 2712,
+    "center": 3011
+  },
+  "pressure_features": {
+    "total_pressure": 2189,
+    "left_right_diff": 80,
+    "front_back_diff": -30,
+    "center_x": 0.1667,
+    "center_y": -0.0968,
+    "asymmetry_index": 0.11
+  },
+  "backrest": {
+    "online": true,
+    "data_ready": true,
+    "valid": true,
+    "distance_mm": 88,
+    "range_status": 0
+  },
+  "posture_duration_s": 326,
+  "sitting_duration_s": 1842,
+  "applied_config_version": 12,
+  "vibration_enabled": true,
+  "vibration_effective_enabled": true,
+  "warning_active": true,
+  "reminder_due": false,
+  "reminder_suppressed": false,
+  "vibration_active": true,
+  "vibration_position": "left",
+  "reminder_count": 2,
+  "reminder_cooldown_remaining_s": 574,
+  "reminder_config": {
+    "mode": "study",
+    "trigger_duration_s": 600,
+    "vibration_duration_s": 10,
+    "cooldown_s": 900,
+    "intensity_percent": 40
+  },
+  "battery_level": null,
+  "power_source": "power_bank",
+  "wifi_rssi_dbm": -52,
+  "sensor_status": {
+    "fsr": {
+      "left": "ok",
+      "right": "ok",
+      "front": "ok",
+      "back": "ok",
+      "center": "ok",
+      "all_ok": true,
+      "baseline_valid": true
+    },
+    "tof": {
+      "online": true,
+      "valid": true
+    },
+    "motor": {
+      "control_ready": true,
+      "self_test_completed": true,
+      "power_verified": false
+    }
+  },
+  "command_status": {
+    "id": "cmd-20260723-001",
+    "type": "calibrate_empty",
+    "status": "success",
+    "progress_percent": 100,
+    "error": null
+  },
+  "device_credential_mode": "per_device_secret",
+  "firmware_version": "0.5.0-device-management"
+}

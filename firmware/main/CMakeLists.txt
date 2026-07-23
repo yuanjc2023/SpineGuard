@@ -1,12 +1,33 @@
 idf_component_register(
-    SRCS "app_main.c"
-    INCLUDE_DIRS "."
+    SRCS
+        "app_main.c"
+        "device_commands.c"
+        "device_config.c"
+        "device_health.c"
+        "device_identity.c"
+        "device_ota.c"
+        "device_registration.c"
+        "fsr_pipeline.c"
+        "motor_control.c"
+        "posture_alert.c"
+        "posture_inference.c"
+        "posture_model.c"
+        "telemetry.c"
+        "vl53l1x_driver.c"
+        "wifi_manager.c"
+    INCLUDE_DIRS
+        "."
     REQUIRES
+        app_update
         esp_adc
-        esp_wifi
         esp_event
-        esp_netif
-        nvs_flash
         esp_http_client
+        esp_http_server
+        esp_netif
         esp_timer
+        esp_wifi
+        driver
+        json
+        mbedtls
+        nvs_flash
 )
