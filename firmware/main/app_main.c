@@ -1,507 +1,510 @@
-#include <inttypes.h>
-#include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <math.h>
 #include <string.h>
-#include <sys/time.h>
-#include <time.h>
+#include <stdio.h>
 
 #include "esp_adc/adc_oneshot.h"
-#include "esp_event.h"
-#include "esp_http_client.h"
+#include "esp_err.h"
 #include "esp_log.h"
-#include "esp_netif.h"
-#include "esp_netif_sntp.h"
 #include "esp_timer.h"
-#include "esp_wifi.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/event_groups.h"
-#include "freertos/task.h"
+#include "esp_system.h"
+#include "esp_ota_ops.h"
+#include "esp_partition.h"
 #include "nvs_flash.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "sdkconfig.h"
 
-#ifdef CONFIG_SPINEGUARD_VIBRATION_ENABLED
-#define SPINEGUARD_VIBRATION_JSON "true"
-#else
-#define SPINEGUARD_VIBRATION_JSON "false"
-#endif
+#include "device_commands.h"
+#include "device_config.h"
+#include "device_health.h"
+#include "device_identity.h"
+#include "device_registration.h"
+#include "device_ota.h"
+#include "fsr_pipeline.h"
+#include "motor_control.h"
+#include "posture_alert.h"
+#include "posture_inference.h"
+#include "posture_model.h"
+#include "telemetry.h"
+#include "vl53l1x_driver.h"
+#include "wifi_manager.h"
 
-#define SAMPLE_COUNT 16
-#define WIFI_CONNECTED_BIT BIT0
-#define JSON_BUFFER_SIZE 1280
-#define SESSION_ID_SIZE 96
-#define SPINEGUARD_TASK_STACK_SIZE (12 * 1024)
-#define SPINEGUARD_TASK_PRIORITY 5
+#define ADC_AVERAGE_SAMPLES 32
+#define SAMPLE_INTERVAL_MS 100
 
-/* Initial thresholds only; calibrate them with real seated-posture data. */
-#define EMPTY_PRESSURE_THRESHOLD 150
-#define POSTURE_OFFSET_THRESHOLD 0.20
-#define BAD_POSTURE_WARNING_SECONDS 30
-#define SAMPLE_INTERVAL_MS 200
-#define UPLOAD_INTERVAL_MS 2000
+#define BASELINE_WAIT_MS 2000
+#define BASELINE_WARMUP_ROUNDS 30
+#define BASELINE_ROUNDS 100
+#define BASELINE_VERIFY_ROUNDS 20
+#define BASELINE_ROUND_DELAY_MS 20
+#define BASELINE_VERIFY_MAX_DIFF_ADC 120.0f
+#define BASELINE_LOAD_ABORT_DELTA_ADC 300.0f
 
-typedef struct {
-    adc_channel_t channel;
-    const char *name;
-    int empty_raw;
-    int pressed_raw;
-} fsr_calibration_t;
+#define EMA_ALPHA 0.25f
+#define HEADER_REPEAT_FRAMES 50
 
-typedef struct {
-    int left;
-    int right;
-    int front;
-    int back;
-    int center;
-} pressure_values_t;
+static const char *TAG = "spineguard_lgbm";
 
-typedef struct {
-    int total_pressure;
-    int left_right_diff;
-    int front_back_diff;
-    double center_x;
-    double center_y;
-    double asymmetry_index;
-} pressure_features_t;
-
-/* Per-channel calibration values; update each pair after hardware calibration. */
-static const fsr_calibration_t s_fsr[] = {
-    { ADC_CHANNEL_3, "left",   4095, 0 }, /* GPIO4 / ADC1_CH3 */
-    { ADC_CHANNEL_4, "right",  4095, 0 }, /* GPIO5 / ADC1_CH4 */
-    { ADC_CHANNEL_5, "front",  4095, 0 }, /* GPIO6 / ADC1_CH5 */
-    { ADC_CHANNEL_6, "back",   4095, 0 }, /* GPIO7 / ADC1_CH6 */
-    { ADC_CHANNEL_7, "center", 4095, 0 }, /* GPIO8 / ADC1_CH7 */
+/* Fixed order: left, right, front, back, center. */
+static const adc_channel_t CHANNELS[FSR_COUNT] = {
+    ADC_CHANNEL_3, /* GPIO4 left   -> S5 */
+    ADC_CHANNEL_4, /* GPIO5 right  -> S4 */
+    ADC_CHANNEL_5, /* GPIO6 front  -> S3 */
+    ADC_CHANNEL_6, /* GPIO7 back   -> S2 */
+    ADC_CHANNEL_7, /* GPIO8 center -> S1 */
 };
 
-static const char *TAG = "spineguard";
-static EventGroupHandle_t s_wifi_bits;
-static bool s_sntp_started;
-static uint32_t s_seq;
-static char s_session_id[SESSION_ID_SIZE];
-static char s_json_buffer[JSON_BUFFER_SIZE];
-static wifi_config_t s_wifi_config;
+static float s_ema[FSR_COUNT];
+static bool s_ema_initialized[FSR_COUNT];
 
-static void log_stack_watermark(const char *stage)
+static void initialize_adc(adc_oneshot_unit_handle_t *adc)
 {
-    ESP_LOGI(
-        TAG,
-        "Stack free at %s: %u bytes",
-        stage,
-        (unsigned int)uxTaskGetStackHighWaterMark(NULL));
-}
-
-static int clamp_int(int value, int lower, int upper)
-{
-    if (value < lower) {
-        return lower;
-    }
-    if (value > upper) {
-        return upper;
-    }
-    return value;
-}
-
-static double clamp_double(double value, double lower, double upper)
-{
-    if (value < lower) {
-        return lower;
-    }
-    if (value > upper) {
-        return upper;
-    }
-    return value;
-}
-
-static int read_avg(adc_oneshot_unit_handle_t handle, adc_channel_t channel)
-{
-    int sum = 0;
-    for (int i = 0; i < SAMPLE_COUNT; i++) {
-        int raw = 0;
-        ESP_ERROR_CHECK(adc_oneshot_read(handle, channel, &raw));
-        sum += raw;
-    }
-    return sum / SAMPLE_COUNT;
-}
-
-static int normalize_fsr(int raw, const fsr_calibration_t *calibration)
-{
-    int span = calibration->empty_raw - calibration->pressed_raw;
-    if (span <= 0) {
-        ESP_LOGE(TAG, "Invalid %s FSR calibration", calibration->name);
-        return 0;
-    }
-
-    int normalized = ((calibration->empty_raw - raw) * 1000) / span;
-    return clamp_int(normalized, 0, 1000);
-}
-
-static pressure_features_t calculate_features(const pressure_values_t *pressure)
-{
-    pressure_features_t features = {
-        .total_pressure = clamp_int(
-            pressure->left + pressure->right + pressure->front + pressure->back + pressure->center,
-            0,
-            5000),
-        .left_right_diff = clamp_int(pressure->left - pressure->right, -1000, 1000),
-        .front_back_diff = clamp_int(pressure->front - pressure->back, -1000, 1000),
-        .center_x = 0.0,
-        .center_y = 0.0,
-        .asymmetry_index = 0.0,
-    };
-    int left_right_sum = pressure->left + pressure->right;
-    int front_back_sum = pressure->front + pressure->back;
-
-    if (left_right_sum > 0) {
-        features.center_x = clamp_double(
-            (double)features.left_right_diff / (double)left_right_sum, -1.0, 1.0);
-    }
-    if (front_back_sum > 0) {
-        features.center_y = clamp_double(
-            (double)features.front_back_diff / (double)front_back_sum, -1.0, 1.0);
-    }
-    if (features.total_pressure > 0) {
-        features.asymmetry_index = clamp_double(
-            (double)(abs(features.left_right_diff) + abs(features.front_back_diff)) /
-                (double)features.total_pressure,
-            0.0,
-            1.0);
-    }
-    return features;
-}
-
-static const char *classify_posture(const pressure_features_t *features)
-{
-    double abs_x = fabs(features->center_x);
-    double abs_y = fabs(features->center_y);
-
-    if (features->total_pressure < EMPTY_PRESSURE_THRESHOLD) {
-        return "empty";
-    }
-    if (abs_x >= POSTURE_OFFSET_THRESHOLD || abs_y >= POSTURE_OFFSET_THRESHOLD) {
-        if (abs_x >= abs_y) {
-            return features->center_x > 0.0 ? "left_lean" : "right_lean";
-        }
-        return features->center_y > 0.0 ? "front_lean" : "back_lean";
-    }
-    return "normal";
-}
-
-static double rule_confidence(const char *posture, const pressure_features_t *features)
-{
-    double offset = fmax(fabs(features->center_x), fabs(features->center_y));
-    if (strcmp(posture, "empty") == 0) {
-        return clamp_double(
-            (double)(EMPTY_PRESSURE_THRESHOLD - features->total_pressure) /
-                (double)EMPTY_PRESSURE_THRESHOLD,
-            0.0,
-            1.0);
-    }
-    if (strcmp(posture, "normal") == 0) {
-        return clamp_double(1.0 - offset / POSTURE_OFFSET_THRESHOLD, 0.0, 1.0);
-    }
-    return clamp_double(offset, 0.0, 1.0);
-}
-
-static bool posture_is_bad(const char *posture)
-{
-    return strcmp(posture, "left_lean") == 0 || strcmp(posture, "right_lean") == 0 ||
-        strcmp(posture, "front_lean") == 0 || strcmp(posture, "back_lean") == 0;
-}
-
-static bool unix_time_valid(void)
-{
-    return time(NULL) >= 1700000000;
-}
-
-static int64_t unix_timestamp_ms(void)
-{
-    struct timeval now;
-    gettimeofday(&now, NULL);
-    return (int64_t)now.tv_sec * 1000 + now.tv_usec / 1000;
-}
-
-static void generate_session_id(void)
-{
-    int written = snprintf(
-        s_session_id,
-        sizeof(s_session_id),
-        "%s-%" PRIu64,
-        CONFIG_SPINEGUARD_DEVICE_ID,
-        (uint64_t)time(NULL));
-    if (written < 0 || written >= (int)sizeof(s_session_id)) {
-        ESP_LOGE(TAG, "Session ID generation failed");
-        s_session_id[0] = '\0';
-    }
-}
-
-static void time_sync_notification_cb(struct timeval *tv)
-{
-    (void)tv;
-    ESP_LOGI(TAG, "SNTP time synchronized; Unix time is valid");
-}
-
-static void start_sntp(void)
-{
-    if (s_sntp_started) {
-        return;
-    }
-
-    esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG(CONFIG_SPINEGUARD_SNTP_SERVER);
-    config.sync_cb = time_sync_notification_cb;
-    ESP_ERROR_CHECK(esp_netif_sntp_init(&config));
-    s_sntp_started = true;
-    ESP_LOGI(TAG, "SNTP started with server %s", CONFIG_SPINEGUARD_SNTP_SERVER);
-}
-
-static void wifi_event_handler(
-    void *arg, esp_event_base_t base, int32_t event_id, void *event_data)
-{
-    (void)arg;
-    (void)event_data;
-    if (base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
-        esp_wifi_connect();
-    } else if (base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        xEventGroupClearBits(s_wifi_bits, WIFI_CONNECTED_BIT);
-        ESP_LOGW(TAG, "Wi-Fi disconnected; reconnecting");
-        esp_wifi_connect();
-    } else if (base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
-        xEventGroupSetBits(s_wifi_bits, WIFI_CONNECTED_BIT);
-        ESP_LOGI(TAG, "Wi-Fi connected; starting SNTP");
-        start_sntp();
-    }
-}
-
-static void wifi_start(void)
-{
-    if (strlen(CONFIG_SPINEGUARD_WIFI_SSID) == 0) {
-        ESP_LOGW(TAG, "Wi-Fi SSID is not configured; telemetry stays local");
-        return;
-    }
-
-    esp_err_t err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ESP_ERROR_CHECK(nvs_flash_init());
-    } else {
-        ESP_ERROR_CHECK(err);
-    }
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-    esp_netif_create_default_wifi_sta();
-
-    wifi_init_config_t init = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&init));
-    s_wifi_bits = xEventGroupCreate();
-    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event_handler, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, wifi_event_handler, NULL));
-
-    memset(&s_wifi_config, 0, sizeof(s_wifi_config));
-    snprintf(
-        (char *)s_wifi_config.sta.ssid,
-        sizeof(s_wifi_config.sta.ssid),
-        "%s",
-        CONFIG_SPINEGUARD_WIFI_SSID);
-    snprintf(
-        (char *)s_wifi_config.sta.password,
-        sizeof(s_wifi_config.sta.password),
-        "%s",
-        CONFIG_SPINEGUARD_WIFI_PASSWORD);
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &s_wifi_config));
-    ESP_ERROR_CHECK(esp_wifi_start());
-}
-
-static bool wifi_connected(void)
-{
-    return s_wifi_bits != NULL && (xEventGroupGetBits(s_wifi_bits) & WIFI_CONNECTED_BIT) != 0;
-}
-
-static void upload_json(const char *json)
-{
-    if (!wifi_connected()) {
-        ESP_LOGW(TAG, "Upload skipped: Wi-Fi is disconnected");
-        return;
-    }
-    if (!unix_time_valid()) {
-        ESP_LOGW(TAG, "Upload skipped: waiting for SNTP time synchronization");
-        return;
-    }
-
-    esp_http_client_config_t config = {
-        .url = CONFIG_SPINEGUARD_BACKEND_URL,
-        .method = HTTP_METHOD_POST,
-        .timeout_ms = 3000,
-    };
-    esp_http_client_handle_t client = esp_http_client_init(&config);
-    if (client == NULL) {
-        ESP_LOGE(TAG, "Upload failed: unable to create HTTP client");
-        return;
-    }
-
-    esp_http_client_set_header(client, "Content-Type", "application/json");
-    esp_http_client_set_header(client, "X-Device-Token", CONFIG_SPINEGUARD_DEVICE_TOKEN);
-    esp_http_client_set_post_field(client, json, strlen(json));
-    esp_err_t err = esp_http_client_perform(client);
-    if (err == ESP_OK) {
-        int status = esp_http_client_get_status_code(client);
-        if (status >= 200 && status <= 299) {
-            ESP_LOGI(TAG, "Telemetry upload succeeded: HTTP %d", status);
-        } else {
-            ESP_LOGW(TAG, "Telemetry upload failed: HTTP %d", status);
-        }
-    } else {
-        ESP_LOGW(TAG, "Telemetry upload failed: %s", esp_err_to_name(err));
-    }
-    esp_http_client_cleanup(client);
-}
-
-static void spineguard_task(void *arg)
-{
-    (void)arg;
-    log_stack_watermark("task start");
-
-    adc_oneshot_unit_handle_t adc;
-    adc_oneshot_unit_init_cfg_t unit = {
+    const adc_oneshot_unit_init_cfg_t unit_config = {
         .unit_id = ADC_UNIT_1,
         .ulp_mode = ADC_ULP_MODE_DISABLE,
     };
-    adc_oneshot_chan_cfg_t channel_config = {
+    ESP_ERROR_CHECK(adc_oneshot_new_unit(&unit_config, adc));
+
+    const adc_oneshot_chan_cfg_t channel_config = {
         .bitwidth = ADC_BITWIDTH_DEFAULT,
         .atten = ADC_ATTEN_DB_12,
     };
-    ESP_ERROR_CHECK(adc_oneshot_new_unit(&unit, &adc));
-    for (size_t i = 0; i < sizeof(s_fsr) / sizeof(s_fsr[0]); i++) {
-        ESP_ERROR_CHECK(adc_oneshot_config_channel(adc, s_fsr[i].channel, &channel_config));
+    for (int i = 0; i < FSR_COUNT; ++i) {
+        ESP_ERROR_CHECK(adc_oneshot_config_channel(*adc, CHANNELS[i], &channel_config));
+    }
+}
+
+static int read_adc_mean(adc_oneshot_unit_handle_t adc, adc_channel_t channel)
+{
+    int64_t sum = 0;
+    for (int i = 0; i < ADC_AVERAGE_SAMPLES; ++i) {
+        int raw = 0;
+        ESP_ERROR_CHECK(adc_oneshot_read(adc, channel, &raw));
+        sum += raw;
+    }
+    return (int)(sum / ADC_AVERAGE_SAMPLES);
+}
+
+static float ema_filter(int sensor, int raw_adc)
+{
+    if (!s_ema_initialized[sensor]) {
+        s_ema[sensor] = (float)raw_adc;
+        s_ema_initialized[sensor] = true;
+        return s_ema[sensor];
+    }
+    s_ema[sensor] =
+        EMA_ALPHA * (float)raw_adc +
+        (1.0f - EMA_ALPHA) * s_ema[sensor];
+    return s_ema[sensor];
+}
+
+static bool collect_empty_baseline(
+    adc_oneshot_unit_handle_t adc,
+    float baseline[FSR_COUNT],
+    bool reject_if_loaded,
+    const char *command_id
+)
+{
+    ESP_LOGI(TAG, "Keep cushion empty; baseline starts in %d ms", BASELINE_WAIT_MS);
+    vTaskDelay(pdMS_TO_TICKS(BASELINE_WAIT_MS));
+
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        int reference[FSR_COUNT] = {0};
+        for (int round = 0; round < BASELINE_WARMUP_ROUNDS; ++round) {
+            for (int sensor = 0; sensor < FSR_COUNT; ++sensor) {
+                reference[sensor] = read_adc_mean(adc, CHANNELS[sensor]);
+            }
+            vTaskDelay(pdMS_TO_TICKS(BASELINE_ROUND_DELAY_MS));
+        }
+
+        double sums[FSR_COUNT] = {0};
+        for (int round = 0; round < BASELINE_ROUNDS; ++round) {
+            for (int sensor = 0; sensor < FSR_COUNT; ++sensor) {
+                const int value = read_adc_mean(adc, CHANNELS[sensor]);
+                if (reject_if_loaded && value - reference[sensor] > BASELINE_LOAD_ABORT_DELTA_ADC) {
+                    ESP_LOGW(TAG, "Calibration aborted: seat load detected on %s", fsr_name((fsr_id_t)sensor));
+                    return false;
+                }
+                sums[sensor] += value;
+            }
+            if (command_id != NULL && round % 10 == 0) {
+                device_commands_set_progress(command_id, (uint8_t)(10 + round * 70 / BASELINE_ROUNDS));
+            }
+            vTaskDelay(pdMS_TO_TICKS(BASELINE_ROUND_DELAY_MS));
+        }
+
+        float candidate[FSR_COUNT] = {0};
+        for (int sensor = 0; sensor < FSR_COUNT; ++sensor) {
+            candidate[sensor] = (float)(sums[sensor] / BASELINE_ROUNDS);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(300));
+        double verify_sums[FSR_COUNT] = {0};
+        for (int round = 0; round < BASELINE_VERIFY_ROUNDS; ++round) {
+            for (int sensor = 0; sensor < FSR_COUNT; ++sensor) {
+                verify_sums[sensor] += read_adc_mean(adc, CHANNELS[sensor]);
+            }
+            vTaskDelay(pdMS_TO_TICKS(BASELINE_ROUND_DELAY_MS));
+        }
+
+        bool stable = true;
+        for (int sensor = 0; sensor < FSR_COUNT; ++sensor) {
+            const float verify = (float)(verify_sums[sensor] / BASELINE_VERIFY_ROUNDS);
+            if (fabsf(verify - candidate[sensor]) > BASELINE_VERIFY_MAX_DIFF_ADC) stable = false;
+            baseline[sensor] = verify;
+        }
+        if (stable) {
+            for (int sensor = 0; sensor < FSR_COUNT; ++sensor) {
+                s_ema[sensor] = baseline[sensor];
+                s_ema_initialized[sensor] = true;
+            }
+            ESP_LOGI(TAG, "FSR baseline L=%.2f R=%.2f F=%.2f B=%.2f C=%.2f",
+                baseline[FSR_LEFT], baseline[FSR_RIGHT], baseline[FSR_FRONT], baseline[FSR_BACK], baseline[FSR_CENTER]);
+            if (command_id != NULL) device_commands_set_progress(command_id, 95);
+            return true;
+        }
+        ESP_LOGW(TAG, "Baseline verification unstable; retrying (%d/2)", attempt + 1);
+    }
+    return false;
+}
+
+static void print_combined_csv_header(void)
+{
+    printf(
+        "HEADER3,"
+        "device_time_ms,frame_id,occupied,ratio_valid,"
+        "total_adc_delta,total_calibrated_g,"
+        "left_raw,left_filtered,left_delta,left_adc_ratio,left_corrected,left_load_s,"
+        "left_calibrated_g,left_calibrated_ratio,left_active,left_within_calibration_range,"
+        "right_raw,right_filtered,right_delta,right_adc_ratio,right_corrected,right_load_s,"
+        "right_calibrated_g,right_calibrated_ratio,right_active,right_within_calibration_range,"
+        "front_raw,front_filtered,front_delta,front_adc_ratio,front_corrected,front_load_s,"
+        "front_calibrated_g,front_calibrated_ratio,front_active,front_within_calibration_range,"
+        "back_raw,back_filtered,back_delta,back_adc_ratio,back_corrected,back_load_s,"
+        "back_calibrated_g,back_calibrated_ratio,back_active,back_within_calibration_range,"
+        "center_raw,center_filtered,center_delta,center_adc_ratio,center_corrected,center_load_s,"
+        "center_calibrated_g,center_calibrated_ratio,center_active,center_within_calibration_range,"
+        "tof_online,tof_data_ready,backrest_distance_raw_mm,"
+        "backrest_distance_filtered_mm,backrest_distance_valid,"
+        "backrest_range_status,backrest_signal_per_spad_kcps,"
+        "backrest_ambient_kcps,backrest_spad_count\n"
+    );
+    fflush(stdout);
+}
+
+static void print_combined_csv_row(
+    const fsr_frame_t *frame,
+    const vl53l1x_sample_t *tof
+)
+{
+    printf(
+        "DATA3,%lld,%lu,%d,%d,%.3f,%.3f",
+        (long long)frame->device_time_ms,
+        (unsigned long)frame->frame_id,
+        frame->occupied ? 1 : 0,
+        frame->ratio_valid ? 1 : 0,
+        frame->total_adc_delta,
+        frame->total_calibrated_g
+    );
+
+    for (int i = 0; i < FSR_COUNT; ++i) {
+        printf(
+            ",%d,%.3f,%.3f,%.8f,%.3f,%.3f,%.3f,%.8f,%d,%d",
+            frame->raw_adc[i],
+            frame->filtered_adc[i],
+            frame->adc_delta[i],
+            frame->adc_ratio[i],
+            frame->corrected_adc[i],
+            frame->load_elapsed_s[i],
+            frame->calibrated_g[i],
+            frame->calibrated_ratio[i],
+            frame->active[i] ? 1 : 0,
+            frame->within_calibration_range[i] ? 1 : 0
+        );
     }
 
-    log_stack_watermark("before Wi-Fi init");
-    wifi_start();
-    log_stack_watermark("after Wi-Fi init");
+    printf(
+        ",%d,%d,%u,%.3f,%d,%u,%u,%u,%u\n",
+        tof->online ? 1 : 0,
+        tof->data_ready ? 1 : 0,
+        (unsigned)tof->distance_raw_mm,
+        tof->distance_filtered_mm,
+        tof->valid ? 1 : 0,
+        (unsigned)tof->range_status,
+        (unsigned)tof->signal_per_spad_kcps,
+        (unsigned)tof->ambient_kcps,
+        (unsigned)tof->spad_count
+    );
+    fflush(stdout);
+}
 
-    char previous_posture[16] = "unknown";
-    int64_t posture_started_us = esp_timer_get_time();
-    int64_t sitting_started_us = 0;
-    int64_t bad_posture_started_us = 0;
-    int64_t last_upload_us = 0;
-    uint32_t reminder_count = 0;
-    bool warning_active = false;
+static void print_prediction(
+    int64_t now_ms,
+    const posture_inference_result_t *inference,
+    const posture_alert_status_t *alert
+)
+{
+    printf(
+        "PRED4,%lld,%lu,%s,%.6f,%s,%llu,%d,%d,%d,%lu",
+        (long long)now_ms,
+        (unsigned long)inference->inference_id,
+        posture_model_label(inference->posture),
+        inference->confidence,
+        posture_model_label(alert->stable_posture),
+        (unsigned long long)alert->stable_duration_s,
+        motor_control_is_enabled() ? 1 : 0,
+        alert->warning_active ? 1 : 0,
+        alert->vibration_active ? 1 : 0,
+        (unsigned long)alert->reminder_count
+    );
+    for (int i = 0; i < POSTURE_MODEL_CLASS_COUNT; ++i) {
+        printf(",%.8f", inference->probabilities[i]);
+    }
+    printf("\n");
+    fflush(stdout);
+}
 
-    while (1) {
-        int raw[5];
-        for (size_t i = 0; i < sizeof(s_fsr) / sizeof(s_fsr[0]); i++) {
-            raw[i] = read_avg(adc, s_fsr[i].channel);
+static float stable_posture_confidence(
+    posture_class_t stable_posture,
+    const posture_inference_result_t *last_inference
+)
+{
+    if (stable_posture == POSTURE_EMPTY) {
+        return 1.0f;
+    }
+    if (
+        last_inference != NULL &&
+        last_inference->ready &&
+        stable_posture >= POSTURE_NORMAL &&
+        stable_posture <= POSTURE_BACK_LEAN
+    ) {
+        return last_inference->probabilities[(int)stable_posture];
+    }
+    return 0.0f;
+}
+
+static void execute_device_command(
+    const device_command_t *command,
+    adc_oneshot_unit_handle_t adc,
+    const fsr_frame_t *latest_frame,
+    float baseline[FSR_COUNT]
+)
+{
+    if (command == NULL) return;
+    ESP_LOGW(TAG, "Executing command %s (%s)", command->id, device_command_type_name(command->type));
+
+    if (command->type == DEVICE_COMMAND_CALIBRATE_EMPTY) {
+        if (latest_frame == NULL || latest_frame->occupied) {
+            ESP_ERROR_CHECK_WITHOUT_ABORT(device_commands_complete(command->id, false, "seat_not_empty"));
+            return;
         }
-        pressure_values_t pressure = {
-            .left = normalize_fsr(raw[0], &s_fsr[0]),
-            .right = normalize_fsr(raw[1], &s_fsr[1]),
-            .front = normalize_fsr(raw[2], &s_fsr[2]),
-            .back = normalize_fsr(raw[3], &s_fsr[3]),
-            .center = normalize_fsr(raw[4], &s_fsr[4]),
-        };
-        ESP_LOGD(TAG, "FSR raw: left=%d right=%d front=%d back=%d center=%d",
-            raw[0], raw[1], raw[2], raw[3], raw[4]);
-
-        pressure_features_t features = calculate_features(&pressure);
-        const char *posture = classify_posture(&features);
-        int64_t now_us = esp_timer_get_time();
-        if (strcmp(posture, previous_posture) != 0) {
-            posture_started_us = now_us;
-            snprintf(previous_posture, sizeof(previous_posture), "%s", posture);
+        motor_control_stop();
+        device_commands_set_progress(command->id, 5);
+        float candidate[FSR_COUNT] = {0};
+        if (!collect_empty_baseline(adc, candidate, true, command->id)) {
+            ESP_ERROR_CHECK_WITHOUT_ABORT(device_commands_complete(command->id, false, "calibration_unstable_or_loaded"));
+            return;
         }
-
-        if (strcmp(posture, "empty") == 0) {
-            sitting_started_us = 0;
-            bad_posture_started_us = 0;
-            warning_active = false;
-        } else {
-            if (sitting_started_us == 0) {
-                sitting_started_us = now_us;
-                reminder_count = 0;
-                warning_active = false;
-                bad_posture_started_us = 0;
-                if (unix_time_valid()) {
-                    generate_session_id();
-                } else {
-                    s_session_id[0] = '\0';
-                }
-            }
-            if (posture_is_bad(posture)) {
-                if (bad_posture_started_us == 0) {
-                    bad_posture_started_us = now_us;
-                }
-                if (!warning_active &&
-                    now_us - bad_posture_started_us >= (int64_t)BAD_POSTURE_WARNING_SECONDS * 1000000) {
-                    warning_active = true;
-                    reminder_count++;
-                    ESP_LOGW(TAG, "Bad posture reminder %" PRIu32 " activated", reminder_count);
-                }
-            } else {
-                bad_posture_started_us = 0;
-                warning_active = false;
-            }
-        }
-
-        if (!unix_time_valid()) {
-            ESP_LOGD(TAG, "Waiting for SNTP synchronization; HTTP upload is disabled");
-        } else if (s_session_id[0] == '\0') {
-            generate_session_id();
-        }
-
-        if (unix_time_valid() && now_us - last_upload_us >= (int64_t)UPLOAD_INTERVAL_MS * 1000) {
-            uint32_t candidate_seq = s_seq + 1;
-            uint64_t posture_duration_s = (uint64_t)(now_us - posture_started_us) / 1000000;
-            uint64_t sitting_duration_s = sitting_started_us == 0 ? 0 :
-                (uint64_t)(now_us - sitting_started_us) / 1000000;
-            int written = snprintf(
-                s_json_buffer, sizeof(s_json_buffer),
-                "{\"protocol_version\":1,\"device_id\":\"%s\",\"session_id\":\"%s\","
-                "\"seq\":%" PRIu32 ",\"timestamp_ms\":%" PRId64 ",\"posture\":\"%s\","
-                "\"confidence\":%.4f,\"pressure\":{\"left\":%d,\"right\":%d,\"front\":%d,"
-                "\"back\":%d,\"center\":%d},\"pressure_features\":{\"total_pressure\":%d,"
-                "\"left_right_diff\":%d,\"front_back_diff\":%d,\"center_x\":%.6f,\"center_y\":%.6f,"
-                "\"asymmetry_index\":%.6f},\"imu\":{\"tilt_x\":0.0,\"tilt_y\":0.0,\"shake_level\":0.0},"
-                "\"posture_duration_s\":%" PRIu64 ",\"sitting_duration_s\":%" PRIu64 ","
-                "\"vibration_enabled\":%s,\"warning_active\":%s,\"reminder_count\":%" PRIu32 ","
-                "\"battery_level\":100,\"recognition_source\":\"rule\",\"model_version\":\"rule-v0.2\","
-                "\"firmware_version\":\"0.2.0\"}",
-                CONFIG_SPINEGUARD_DEVICE_ID, s_session_id, candidate_seq, unix_timestamp_ms(), posture,
-                rule_confidence(posture, &features), pressure.left, pressure.right, pressure.front,
-                pressure.back, pressure.center, features.total_pressure, features.left_right_diff,
-                features.front_back_diff, features.center_x, features.center_y, features.asymmetry_index,
-                posture_duration_s, sitting_duration_s,
-                SPINEGUARD_VIBRATION_JSON,
-                warning_active ? "true" : "false", reminder_count);
-            if (written < 0) {
-                ESP_LOGE(TAG, "Telemetry JSON generation failed");
-            } else if (written >= (int)sizeof(s_json_buffer)) {
-                ESP_LOGE(TAG, "Telemetry JSON truncated; upload skipped");
-            } else {
-                s_seq = candidate_seq;
-                last_upload_us = now_us;
-                ESP_LOGI(TAG, "Telemetry JSON: %s", s_json_buffer);
-                upload_json(s_json_buffer);
-            }
-        }
-        vTaskDelay(pdMS_TO_TICKS(SAMPLE_INTERVAL_MS));
+        memcpy(baseline, candidate, sizeof(float) * FSR_COUNT);
+        fsr_pipeline_init(baseline);
+        posture_inference_reset();
+        posture_alert_init();
+        device_health_reset_baseline(baseline);
+        ESP_ERROR_CHECK_WITHOUT_ABORT(device_commands_complete(command->id, true, ""));
+        return;
     }
 
-    vTaskDelete(NULL);
+
+    if (command->type == DEVICE_COMMAND_OTA_UPDATE) {
+        motor_control_stop();
+        const esp_err_t err = device_ota_start(command);
+        if (err != ESP_OK) {
+            ESP_ERROR_CHECK_WITHOUT_ABORT(device_commands_complete(command->id, false, "ota_start_failed"));
+        }
+        return;
+    }
+
+    if (command->type == DEVICE_COMMAND_ROTATE_CLAIM_CODE) {
+        const esp_err_t err = device_identity_rotate_claim_code();
+        ESP_ERROR_CHECK_WITHOUT_ABORT(device_commands_complete(command->id, err == ESP_OK, err == ESP_OK ? "" : "claim_rotation_failed"));
+        return;
+    }
+
+    if (command->type == DEVICE_COMMAND_RESTART) {
+        ESP_ERROR_CHECK_WITHOUT_ABORT(device_commands_complete(command->id, true, ""));
+        vTaskDelay(pdMS_TO_TICKS(2500));
+        esp_restart();
+        return;
+    }
+
+    if (command->type == DEVICE_COMMAND_ENTER_PROVISIONING) {
+        const esp_err_t err = wifi_manager_clear_saved_config();
+        ESP_ERROR_CHECK_WITHOUT_ABORT(device_commands_complete(command->id, err == ESP_OK, err == ESP_OK ? "" : "wifi_clear_failed"));
+        if (err == ESP_OK) {
+            vTaskDelay(pdMS_TO_TICKS(2500));
+            esp_restart();
+        }
+        return;
+    }
+
+    if (command->type == DEVICE_COMMAND_FACTORY_RESET) {
+        ESP_ERROR_CHECK_WITHOUT_ABORT(device_commands_complete(command->id, true, ""));
+        vTaskDelay(pdMS_TO_TICKS(2500));
+        ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_flash_deinit());
+        ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_flash_erase());
+        esp_restart();
+        return;
+    }
+
+    ESP_ERROR_CHECK_WITHOUT_ABORT(device_commands_complete(command->id, false, "unsupported_command"));
+}
+
+
+static void confirm_running_ota_image_if_needed(void)
+{
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    if (running == NULL) {
+        ESP_LOGW(TAG, "Unable to obtain running app partition");
+        return;
+    }
+
+    const bool is_ota_partition =
+        running->type == ESP_PARTITION_TYPE_APP &&
+        running->subtype >= ESP_PARTITION_SUBTYPE_APP_OTA_0 &&
+        running->subtype <= ESP_PARTITION_SUBTYPE_APP_OTA_15;
+
+    if (!is_ota_partition) {
+        ESP_LOGI(
+            TAG,
+            "Running from %s partition; OTA confirmation skipped",
+            running->label
+        );
+        return;
+    }
+
+    esp_ota_img_states_t state = ESP_OTA_IMG_UNDEFINED;
+    const esp_err_t state_err = esp_ota_get_state_partition(running, &state);
+    if (state_err != ESP_OK) {
+        ESP_LOGW(
+            TAG,
+            "Unable to read OTA image state for %s: %s",
+            running->label,
+            esp_err_to_name(state_err)
+        );
+        return;
+    }
+
+    if (state != ESP_OTA_IMG_PENDING_VERIFY) {
+        ESP_LOGI(
+            TAG,
+            "Running OTA partition %s does not require confirmation (state=%d)",
+            running->label,
+            (int)state
+        );
+        return;
+    }
+
+    const esp_err_t confirm_err = esp_ota_mark_app_valid_cancel_rollback();
+    if (confirm_err == ESP_OK) {
+        ESP_LOGI(TAG, "OTA image in %s confirmed as valid", running->label);
+    } else {
+        ESP_LOGW(
+            TAG,
+            "Unable to confirm OTA image in %s: %s",
+            running->label,
+            esp_err_to_name(confirm_err)
+        );
+    }
 }
 
 void app_main(void)
 {
-    BaseType_t created = xTaskCreate(
-        spineguard_task,
-        "spineguard",
-        SPINEGUARD_TASK_STACK_SIZE,
-        NULL,
-        SPINEGUARD_TASK_PRIORITY,
-        NULL);
+    adc_oneshot_unit_handle_t adc = NULL;
+    initialize_adc(&adc);
 
-    if (created != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create SpineGuard task");
-        abort();
+    const esp_err_t wifi_result = wifi_manager_start();
+    if (wifi_result != ESP_OK) ESP_LOGW(TAG, "Wi-Fi manager unavailable: %s", esp_err_to_name(wifi_result));
+
+    ESP_ERROR_CHECK(device_commands_init());
+    ESP_ERROR_CHECK(device_config_init());
+    device_runtime_config_t runtime_config;
+    device_config_get(&runtime_config);
+    motor_control_init(device_config_effective_vibration_enabled(&runtime_config), runtime_config.intensity_percent);
+#if CONFIG_SPINEGUARD_MOTOR_SELF_TEST
+    motor_control_self_test();
+#endif
+
+    const esp_err_t tof_init_result = vl53l1x_init();
+    if (tof_init_result != ESP_OK) ESP_LOGW(TAG, "VL53L1X unavailable; FSR output continues: %s", esp_err_to_name(tof_init_result));
+
+    float baseline[FSR_COUNT] = {0};
+    const bool baseline_stable = collect_empty_baseline(adc, baseline, false, NULL);
+    if (!baseline_stable) ESP_LOGW(TAG, "Boot baseline remained unstable; remote recalibration is recommended");
+    fsr_pipeline_init(baseline);
+    device_health_init(baseline);
+    posture_inference_init();
+    posture_alert_init();
+    ESP_ERROR_CHECK_WITHOUT_ABORT(telemetry_start());
+    ESP_ERROR_CHECK_WITHOUT_ABORT(device_config_start_polling());
+    ESP_ERROR_CHECK_WITHOUT_ABORT(device_registration_start());
+    confirm_running_ota_image_if_needed();
+
+    ESP_LOGI(TAG, "Model=%s; reminder parameters are remotely configurable; PWM intensity=%u%%", POSTURE_MODEL_VERSION, runtime_config.intensity_percent);
+    print_combined_csv_header();
+
+    uint32_t frame_id = 0;
+    TickType_t last_wake = xTaskGetTickCount();
+    posture_alert_status_t alert_status = {.stable_posture = POSTURE_UNKNOWN};
+    posture_inference_result_t last_inference = {.posture = POSTURE_UNKNOWN};
+    fsr_frame_t latest_frame = {0};
+
+    while (true) {
+        int raw_adc[FSR_COUNT] = {0};
+        float filtered_adc[FSR_COUNT] = {0};
+        for (int sensor = 0; sensor < FSR_COUNT; ++sensor) {
+            raw_adc[sensor] = read_adc_mean(adc, CHANNELS[sensor]);
+            filtered_adc[sensor] = ema_filter(sensor, raw_adc[sensor]);
+        }
+
+        fsr_frame_t frame;
+        fsr_pipeline_process(raw_adc, filtered_adc, esp_timer_get_time(), ++frame_id, &frame);
+        latest_frame = frame;
+
+        vl53l1x_sample_t tof_sample = {.online = vl53l1x_is_online(), .range_status = 255};
+        if (vl53l1x_is_online()) {
+            const esp_err_t read_result = vl53l1x_read(&tof_sample);
+            if (read_result != ESP_OK && read_result != ESP_ERR_TIMEOUT && frame_id % HEADER_REPEAT_FRAMES == 1) {
+                ESP_LOGW(TAG, "VL53L1X read failed: %s", esp_err_to_name(read_result));
+            }
+        }
+        device_health_update(&frame, &tof_sample);
+
+        posture_inference_result_t inference;
+        const bool new_prediction = posture_inference_push(&frame, &tof_sample, &inference);
+        if (new_prediction) last_inference = inference;
+        const int64_t now_ms = frame.device_time_ms;
+        device_config_get(&runtime_config);
+
+        if (!frame.occupied) {
+            posture_alert_update(true, POSTURE_EMPTY, 1.0f, now_ms, &runtime_config, &alert_status);
+        } else {
+            posture_alert_update(new_prediction, new_prediction ? inference.posture : POSTURE_UNKNOWN,
+                new_prediction ? inference.confidence : 0.0f, now_ms, &runtime_config, &alert_status);
+        }
+
+        telemetry_update_snapshot(&frame, &tof_sample, alert_status.stable_posture,
+            stable_posture_confidence(alert_status.stable_posture, &last_inference), &alert_status);
+        print_combined_csv_row(&frame, &tof_sample);
+        if (new_prediction) print_prediction(now_ms, &inference, &alert_status);
+        if (frame_id % HEADER_REPEAT_FRAMES == 0) print_combined_csv_header();
+
+        device_command_t command;
+        if (device_commands_take_pending(&command)) {
+            execute_device_command(&command, adc, &latest_frame, baseline);
+            last_wake = xTaskGetTickCount();
+        }
+        vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(SAMPLE_INTERVAL_MS));
     }
 }
