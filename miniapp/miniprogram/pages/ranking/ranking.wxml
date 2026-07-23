@@ -1,0 +1,24 @@
+<view class="container">
+  <view class="summary">
+    <view>
+      <text class="summary-label">我的排名</text>
+      <text class="summary-value">第 {{myRank}} 名</text>
+    </view>
+    <view>
+      <text class="summary-label">今日得分</text>
+      <text class="summary-value">{{myScore}} 分</text>
+    </view>
+  </view>
+
+  <view class="rank-list">
+    <view class="rank-item {{index < 3 ? 'top' : ''}}" wx:for="{{rankingList}}" wx:key="name">
+      <text class="rank-num">{{index + 1}}</text>
+      <view class="avatar">{{item.initial}}</view>
+      <view class="rank-info">
+        <text class="rank-name">{{item.name}}</text>
+        <text class="rank-minutes">正确坐姿 {{item.minutes}} 分钟</text>
+      </view>
+      <text class="rank-score">{{item.score}}分</text>
+    </view>
+  </view>
+</view>

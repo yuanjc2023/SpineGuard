@@ -1,0 +1,53 @@
+.container {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 100vh;
+  background: #f8f9fc;
+  padding: 30rpx;
+}
+
+.form-card {
+  background: #ffffff;
+  border-radius: 24rpx;
+  padding: 30rpx;
+  margin-bottom: 36rpx;
+}
+
+.field {
+  margin-bottom: 30rpx;
+}
+
+.field:last-child {
+  margin-bottom: 0;
+}
+
+.label {
+  display: block;
+  color: #4A5568;
+  font-size: 28rpx;
+  margin-bottom: 14rpx;
+}
+
+.input,
+.picker {
+  height: 88rpx;
+  line-height: 88rpx;
+  box-sizing: border-box;
+  border-radius: 16rpx;
+  background: #F7FAFC;
+  color: #1A202C;
+  font-size: 30rpx;
+  padding: 0 24rpx;
+}
+
+.save-btn {
+  height: 92rpx;
+  line-height: 92rpx;
+  border-radius: 46rpx;
+  background: #2ECC71;
+  color: #ffffff;
+  font-size: 32rpx;
+  text-align:center;
+  margin: 0 auto;
+}

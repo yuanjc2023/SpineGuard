@@ -1,0 +1,81 @@
+<view class="container">
+  <view class="sync-tip" wx:if="{{loading}}"><view class="loading-dot"></view><text>正在同步后端健康数据…</text></view>
+  <view class="api-notice" wx:if="{{errorMessage}}">{{errorMessage}}</view>
+
+  <view class="score-card tone-{{score.tone}}">
+    <view class="card-top light">
+      <view><text class="eyebrow">TODAY'S POSTURE</text><text class="score-card-title">今日护脊评分</text></view>
+      <text class="data-tag">今日</text>
+    </view>
+    <view class="score-main">
+      <view class="score-ring" style="background:conic-gradient(#ffffff 0% {{score.score}}%,rgba(255,255,255,.20) {{score.score}}% 100%);">
+        <view class="score-inner"><text class="score-number">{{score.score}}</text><text class="score-total">/100</text></view>
+      </view>
+      <view class="score-side">
+        <view class="score-copy"><text class="score-label">{{score.label}}</text><text class="score-change">{{score.changeText}}</text></view>
+        <view class="score-facts">
+          <view><text class="fact-value">{{todayCorrectText}}</text><text class="fact-label">标准坐姿</text></view>
+          <view><text class="fact-value">{{longestPoorText}}</text><text class="fact-label">最长异常</text></view>
+          <view><text class="fact-value">{{reminderCount}} 次</text><text class="fact-label">今日提醒</text></view>
+        </view>
+      </view>
+    </view>
+    <view class="score-composition">
+      <view class="composition-heading">
+        <text class="composition-title">今日坐姿占比</text>
+        <text class="composition-summary">标准坐姿 {{todayComposition.normalPercent}}%</text>
+      </view>
+      <view class="composition-bar" wx:if="{{todayComposition.effectiveCount}}">
+        <view class="composition-segment" wx:for="{{todayComposition.items}}" wx:key="key" style="width:{{item.percent}}%;background:{{item.color}};"></view>
+      </view>
+      <view class="composition-bar empty" wx:else></view>
+      <view class="composition-legend">
+        <view class="composition-item" wx:for="{{todayComposition.items}}" wx:key="key">
+          <text class="composition-dot" style="background:{{item.color}};"></text>
+          <text>{{item.name}}</text><text class="composition-percent">{{item.percent}}%</text>
+        </view>
+      </view>
+      <view class="composition-insight">
+        <text class="composition-observe">{{todayComposition.primaryIssue}}</text>
+        <text class="composition-advice">{{todayComposition.primaryAdvice}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="content-card balance-card period-card">
+    <view class="card-top">
+      <view><text class="card-title">身体平衡趋势</text><text class="card-subtitle">压力越均衡，通常说明坐姿越稳定</text></view>
+      <text class="status-pill {{balance.levelTone}}">{{balance.level}}</text>
+    </view>
+    <view class="chart-toolbar">
+      <text class="toolbar-label">查看范围</text>
+      <view class="period-tabs">
+        <view class="period-tab {{currentTab === 'day' ? 'active' : ''}}" bindtap="switchTab" data-tab="day">日</view>
+        <view class="period-tab {{currentTab === 'week' ? 'active' : ''}}" bindtap="switchTab" data-tab="week">周</view>
+        <view class="period-tab {{currentTab === 'month' ? 'active' : ''}}" bindtap="switchTab" data-tab="month">月</view>
+        <view class="period-tab {{currentTab === 'year' ? 'active' : ''}}" bindtap="switchTab" data-tab="year">年</view>
+      </view>
+    </view>
+    <view class="chart-shell">
+      <view class="good-zone-label"><text class="zone-dot"></text>良好区域 ≤15%</view>
+      <canvas id="lineCanvas" type="2d" class="line-chart"></canvas>
+    </view>
+    <view class="balance-summary">
+      <view><text class="summary-label">本周期平均</text><view class="summary-value-line"><text class="summary-value">{{balance.averagePercent}}%</text><text class="direction {{balance.direction}}">{{balance.direction === 'down' ? '↓' : (balance.direction === 'up' ? '↑' : '→')}}</text></view></view>
+      <view class="balance-compare"><text>{{balance.changeText}}</text><text>{{balance.explanation}}</text></view>
+    </view>
+  </view>
+
+  <view class="advice-card">
+    <view class="advice-icon">✨</view>
+    <view class="advice-copy">
+      <view class="advice-heading"><text class="advice-title">AI 护脊建议</text><text class="advice-source">数据分析</text></view>
+      <text class="advice-eyebrow">{{advice.eyebrow}}</text>
+      <text class="advice-focus">{{advice.title}}</text>
+      <text class="advice-text">{{advice.text}}</text>
+      <button class="assistant-button" bindtap="navigateToAi">继续咨询坐姿 AI 助手 <text>›</text></button>
+    </view>
+  </view>
+
+  <text class="data-note">数据来自已绑定坐垫与现有后端统计，仅用于坐姿行为提示，不作为医学诊断。</text>
+</view>

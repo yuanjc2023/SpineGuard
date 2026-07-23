@@ -1,0 +1,66 @@
+<view class="container">
+  <view class="message error" wx:if="{{errorMessage}}">{{errorMessage}}</view>
+  <view class="message warning" wx:if="{{readWarning}}">{{readWarning}}</view>
+  <view class="loading-card" wx:if="{{loading && !report}}"><view class="loading-dot"></view><text>正在读取报告详情…</text></view>
+
+  <view class="detail-card" wx:if="{{report}}">
+    <view class="detail-head">
+      <view class="head-copy">
+        <text class="detail-kicker" wx:if="{{report.typeCode === 'smart'}}">最近最多 600 条记录 · 手动生成</text>
+        <text class="detail-kicker" wx:else>{{report.type}} · {{report.sourceText}}</text>
+        <text class="detail-title">{{report.periodText}}</text>
+        <view class="detail-meta"><text>生成于 {{report.createdAtText}}</text><text class="read-state" wx:if="{{isSystemReport}}">{{report.readText}}</text></view>
+      </view>
+      <text class="risk-pill {{report.riskLevel}}">{{report.riskText}}</text>
+    </view>
+
+    <view class="syncing-tip" wx:if="{{loading}}"><view class="loading-dot small"></view><text>正在同步后端完整数据…</text></view>
+
+    <view class="section-label">核心指标</view>
+    <view class="overview-grid">
+      <view class="overview primary"><text class="overview-label">标准坐姿占比</text><text class="overview-value">{{report.normalPercent}}%</text><text class="overview-sub">{{report.normalTimeText}}</text></view>
+      <view class="overview"><text class="overview-label">有效坐姿时间</text><text class="overview-value small">{{report.effectiveTimeText}}</text></view>
+      <view class="overview"><text class="overview-label">提醒次数</text><text class="overview-value small">{{report.reminderCount}} 次</text></view>
+      <view class="overview"><text class="overview-label">最长连续异常</text><text class="overview-value small">{{report.longestAbnormalText}}</text></view>
+    </view>
+
+    <view class="detail-section">
+      <view class="detail-section-head"><view><text class="detail-section-title">姿态时长分布</text><text class="detail-section-sub">empty 和 unknown 不计入有效坐姿比例</text></view><text class="pai-label">PAI {{report.pai}}</text></view>
+      <view class="posture-stack">
+        <view class="posture-stack-segment posture-{{item.key}}" wx:for="{{report.postureBreakdown}}" wx:key="key" style="width:{{item.barWidth}}%;"></view>
+      </view>
+      <view class="posture-compact-grid">
+        <view class="posture-compact-item" wx:for="{{report.postureBreakdown}}" wx:key="key">
+          <view class="posture-compact-head"><text class="posture-dot posture-{{item.key}}"></text><text class="posture-name">{{item.name}}</text><text class="posture-percent">{{item.percent}}%</text></view>
+          <text class="posture-duration">{{item.durationText}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="detail-section advice-section">
+      <view class="advice-head"><text class="detail-section-title">坐姿行为分析与建议</text><text class="generated-tag">{{report.generatedText}}</text></view>
+      <rich-text class="advice-rich" nodes="{{report.adviceHtml}}"></rich-text>
+      <view class="report-actions">
+        <view class="report-action secondary" bindtap="copyAdvice"><text class="action-icon">⧉</text>复制 AI 建议</view>
+        <view class="report-action primary" bindtap="exportPdf" loading="{{exporting}}" disabled="{{exporting}}"><text class="action-icon" wx:if="{{!exporting}}">⇩</text>{{exporting ? '生成 PDF 中…' : '导出 PDF'}}</view>
+      </view>
+    </view>
+
+    <view class="detail-section trend-card {{report.trendClass}}">
+      <view class="trend-head"><text class="detail-section-title">姿态变化趋势</text><text class="trend-pill">{{report.trendLabel}}</text></view>
+      <text class="trend-copy">{{report.trendText}}</text>
+      <view class="trend-compare"><text>前半段非标准 {{report.firstHalfPercent}}</text><text>后半段 {{report.secondHalfPercent}}</text></view>
+    </view>
+
+    <view class="detail-section compact-section">
+      <view class="fact-row"><text>分析记录</text><text>{{report.recordCount}} 条</text></view>
+      <view class="fact-row"><text>非标准坐姿</text><text>{{report.poorTimeText}}</text></view>
+      <view class="fact-row"><text>提醒高峰</text><text>{{report.reminderPeakText}}</text></view>
+      <view class="fact-row data-range"><text>数据范围</text><text>{{report.dataRangeText}}</text></view>
+    </view>
+
+    
+    
+  </view>
+  <canvas type="2d" id="reportExportCanvas" class="export-canvas"></canvas>
+</view>

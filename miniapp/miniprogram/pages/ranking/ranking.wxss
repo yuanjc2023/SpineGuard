@@ -1,0 +1,104 @@
+.container {
+  width: 100%;
+  box-sizing: border-box;
+  display: block;
+  min-height: 100vh;
+  background: #f8f9fc;
+  padding: 30rpx;
+}
+
+.summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 24rpx;
+  background: #ffffff;
+  border-radius: 24rpx;
+  padding: 34rpx;
+  margin-bottom: 30rpx;
+  box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.04);
+}
+
+.summary-label,
+.summary-value {
+  display: block;
+}
+
+.summary-label {
+  font-size: 24rpx;
+  color: #718096;
+  margin-bottom: 10rpx;
+}
+
+.summary-value {
+  font-size: 40rpx;
+  font-weight: 700;
+  color: #1A202C;
+}
+
+.rank-list {
+  background: #ffffff;
+  border-radius: 24rpx;
+  overflow: hidden;
+}
+
+.rank-item {
+  display: flex;
+  align-items: center;
+  padding: 26rpx 28rpx;
+  border-bottom: 1rpx solid #EDF2F7;
+}
+
+.rank-item:last-child {
+  border-bottom: 0;
+}
+
+.rank-item.top {
+  background: #FBFDF8;
+}
+
+.rank-num {
+  width: 56rpx;
+  font-size: 32rpx;
+  font-weight: 700;
+  color: #2D3748;
+}
+
+.avatar {
+  width: 72rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+  text-align: center;
+  border-radius: 50%;
+  background: #E2E8F0;
+  color: #2ECC71;
+  font-size: 28rpx;
+  font-weight: 700;
+  margin-right: 22rpx;
+}
+
+.rank-info {
+  flex: 1;
+}
+
+.rank-name,
+.rank-minutes {
+  display: block;
+}
+
+.rank-name {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #1A202C;
+  margin-bottom: 8rpx;
+}
+
+.rank-minutes {
+  font-size: 24rpx;
+  color: #718096;
+}
+
+.rank-score {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #F6AD55;
+}

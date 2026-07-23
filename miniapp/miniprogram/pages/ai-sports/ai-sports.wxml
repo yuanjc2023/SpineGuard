@@ -1,0 +1,58 @@
+<view class="assistant-page">
+  <view class="summary-card">
+    <view class="summary-head">
+      <view>
+        <text class="summary-eyebrow">今日坐姿分析</text>
+        <text class="summary-date">{{date}}</text>
+      </view>
+      <view class="summary-badge {{summaryLoading ? 'loading' : ''}}">
+        <view class="status-dot"></view>{{summarySource}}
+      </view>
+    </view>
+    <text class="summary-text">{{summaryText}}</text>
+  </view>
+
+  <view class="chat-panel">
+    <view class="chat-title-row">
+      <view>
+        <text class="chat-title">坐姿 AI 助手</text>
+        <text class="chat-subtitle">回答仅基于当前账号的匿名坐姿数据</text>
+      </view>
+      <view class="bot-avatar">AI</view>
+    </view>
+
+    <scroll-view class="message-list" scroll-y enhanced show-scrollbar="{{false}}" scroll-into-view="{{scrollIntoView}}">
+      <view id="{{item.id}}" class="message-row {{item.role}}" wx:for="{{messages}}" wx:key="id">
+        <view class="message-avatar" wx:if="{{item.role === 'assistant'}}">AI</view>
+        <view class="message-content">
+          <view class="message-bubble">{{item.text}}</view>
+          <text class="message-source" wx:if="{{item.source}}">{{item.source}}回答</text>
+        </view>
+      </view>
+      <view id="typing" class="message-row assistant" wx:if="{{sending}}">
+        <view class="message-avatar">AI</view>
+        <view class="typing-bubble"><text></text><text></text><text></text></view>
+      </view>
+    </scroll-view>
+
+    <scroll-view class="quick-list" scroll-x show-scrollbar="{{false}}" wx:if="{{canChat}}">
+      <view class="quick-inner">
+        <button class="quick-chip" wx:for="{{quickQuestions}}" wx:key="*this" data-question="{{item}}" bindtap="useQuickQuestion">{{item}}</button>
+      </view>
+    </scroll-view>
+
+    <view class="composer">
+      <input
+        class="chat-input"
+        value="{{inputValue}}"
+        placeholder="{{canChat ? '问问今天的坐姿数据…' : '登录后可使用 AI 助手'}}"
+        disabled="{{!canChat || sending}}"
+        confirm-type="send"
+        bindinput="onInput"
+        bindconfirm="sendMessage"
+      />
+      <view class="send-button {{(!inputValue || sending || !canChat) ? 'disabled' : ''}}" bindtap="sendMessage">发送</view>
+    </view>
+    <text class="safety-note">建议仅供日常坐姿管理参考，不能替代医学诊断。</text>
+  </view>
+</view>
