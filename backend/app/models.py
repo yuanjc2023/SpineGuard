@@ -55,11 +55,24 @@ class Device(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     device_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     device_token_hash: Mapped[str] = mapped_column(String(255))
+    device_name: Mapped[str] = mapped_column(String(64), default="SpineGuard")
+    claim_code_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     firmware_version: Mapped[str] = mapped_column(String(64), default="")
     model_version: Mapped[str] = mapped_column(String(64), default="")
     battery_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
     online_status: Mapped[str] = mapped_column(String(32), default="unknown", index=True)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    config_version: Mapped[int] = mapped_column(Integer, default=0)
+    vibration_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    reminder_mode: Mapped[str] = mapped_column(String(32), default="normal")
+    reminder_trigger_duration_s: Mapped[int] = mapped_column(Integer, default=300)
+    reminder_vibration_duration_s: Mapped[int] = mapped_column(Integer, default=30)
+    reminder_cooldown_s: Mapped[int] = mapped_column(Integer, default=600)
+    reminder_intensity_percent: Mapped[int] = mapped_column(Integer, default=70)
+    applied_config_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    power_source: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    wifi_rssi_dbm: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sensor_status_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class DeviceBinding(Base):
@@ -83,6 +96,7 @@ class PostureRecord(Base):
     session_id: Mapped[str] = mapped_column(String(64), index=True)
     seq: Mapped[int] = mapped_column(Integer)
     timestamp_ms: Mapped[int] = mapped_column(BigInteger, index=True)
+    device_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
     posture: Mapped[str] = mapped_column(String(32), index=True)
     confidence: Mapped[float] = mapped_column(Float)
 
@@ -98,6 +112,14 @@ class PostureRecord(Base):
     raw_pressure_back: Mapped[int | None] = mapped_column(Integer, nullable=True)
     raw_pressure_center: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    occupied: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    ratio_valid: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    backrest_online: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    backrest_data_ready: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    backrest_valid: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    backrest_distance_mm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    backrest_range_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     total_pressure: Mapped[int] = mapped_column(Integer)
     left_right_diff: Mapped[int] = mapped_column(Integer)
     front_back_diff: Mapped[int] = mapped_column(Integer)
@@ -112,14 +134,44 @@ class PostureRecord(Base):
     posture_duration_s: Mapped[int] = mapped_column(Integer)
     sitting_duration_s: Mapped[int] = mapped_column(Integer)
     vibration_enabled: Mapped[bool] = mapped_column(Boolean)
+    vibration_effective_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     warning_active: Mapped[bool] = mapped_column(Boolean)
+    reminder_due: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    reminder_suppressed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    vibration_active: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    vibration_position: Mapped[str | None] = mapped_column(String(16), nullable=True)
     reminder_count: Mapped[int] = mapped_column(Integer)
-    battery_level: Mapped[int] = mapped_column(Integer)
+    reminder_cooldown_remaining_s: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    applied_config_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reminder_config_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    battery_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    power_source: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    wifi_rssi_dbm: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sensor_status_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    command_status_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    device_credential_mode: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     recognition_source: Mapped[str] = mapped_column(String(32))
     model_version: Mapped[str] = mapped_column(String(64))
     firmware_version: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class DeviceCommand(Base, TimestampMixin):
+    __tablename__ = "device_commands"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    command_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    device_id: Mapped[str] = mapped_column(String(64), index=True)
+    command_type: Mapped[str] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
+    progress_percent: Mapped[int] = mapped_column(Integer, default=0)
+    firmware_url: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    firmware_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    target_version: Mapped[str | None] = mapped_column(String(48), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    created_by_user_id: Mapped[str] = mapped_column(String(64), index=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class DailyStat(Base, TimestampMixin):

@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, time, timezone
 
 from fastapi import WebSocket
@@ -6,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .. import state
-from ..models import Device, DeviceBinding, PostureRecord, TelemetryReceipt, utc_now
+from ..models import Device, DeviceBinding, DeviceCommand, PostureRecord, TelemetryReceipt, utc_now
 from ..schemas import Telemetry
 from .game import process_telemetry
 
@@ -39,6 +40,7 @@ async def save_telemetry(data: Telemetry, db: Session) -> dict:
     record = to_posture_record(data, student_id)
     db.add(record)
     update_device_status(data, db)
+    update_command_status(data, db)
     game_events = process_telemetry(data, student_id, db)
     db.commit()
 
@@ -152,12 +154,15 @@ async def broadcast_telemetry(data: Telemetry, student_id: str | None = None) ->
 
 
 def to_posture_record(data: Telemetry, student_id: str | None = None) -> PostureRecord:
+    imu = data.imu
+    backrest = data.backrest
     return PostureRecord(
         device_id=data.device_id,
         student_id=student_id,
         session_id=data.session_id,
         seq=data.seq,
         timestamp_ms=data.timestamp_ms,
+        device_name=data.device_name,
         posture=data.posture,
         confidence=data.confidence,
         pressure_left=data.pressure.left,
@@ -170,21 +175,41 @@ def to_posture_record(data: Telemetry, student_id: str | None = None) -> Posture
         raw_pressure_front=data.raw_pressure.front,
         raw_pressure_back=data.raw_pressure.back,
         raw_pressure_center=data.raw_pressure.center,
+        occupied=data.occupied,
+        ratio_valid=data.ratio_valid,
+        backrest_online=backrest.online if backrest else None,
+        backrest_data_ready=backrest.data_ready if backrest else None,
+        backrest_valid=backrest.valid if backrest else None,
+        backrest_distance_mm=backrest.distance_mm if backrest else None,
+        backrest_range_status=backrest.range_status if backrest else None,
         total_pressure=data.pressure_features.total_pressure,
         left_right_diff=data.pressure_features.left_right_diff,
         front_back_diff=data.pressure_features.front_back_diff,
         center_x=data.pressure_features.center_x,
         center_y=data.pressure_features.center_y,
         asymmetry_index=data.pressure_features.asymmetry_index,
-        tilt_x=data.imu.tilt_x,
-        tilt_y=data.imu.tilt_y,
-        shake_level=data.imu.shake_level,
+        tilt_x=imu.tilt_x if imu else 0.0,
+        tilt_y=imu.tilt_y if imu else 0.0,
+        shake_level=imu.shake_level if imu else 0.0,
         posture_duration_s=data.posture_duration_s,
         sitting_duration_s=data.sitting_duration_s,
+        applied_config_version=data.applied_config_version,
         vibration_enabled=data.vibration_enabled,
+        vibration_effective_enabled=data.vibration_effective_enabled,
         warning_active=data.warning_active,
+        reminder_due=data.reminder_due,
+        reminder_suppressed=data.reminder_suppressed,
+        vibration_active=data.vibration_active,
+        vibration_position=data.vibration_position,
         reminder_count=data.reminder_count,
+        reminder_cooldown_remaining_s=data.reminder_cooldown_remaining_s,
+        reminder_config_json=dump_model(data.reminder_config),
         battery_level=data.battery_level,
+        power_source=data.power_source,
+        wifi_rssi_dbm=data.wifi_rssi_dbm,
+        sensor_status_json=dump_model(data.sensor_status),
+        command_status_json=dump_model(data.command_status),
+        device_credential_mode=data.device_credential_mode,
         recognition_source=data.recognition_source,
         model_version=data.model_version,
         firmware_version=data.firmware_version,
@@ -201,6 +226,46 @@ def update_device_status(data: Telemetry, db: Session) -> None:
     device.battery_level = data.battery_level
     device.firmware_version = data.firmware_version
     device.model_version = data.model_version
+    if data.device_name:
+        device.device_name = data.device_name
+    device.applied_config_version = data.applied_config_version
+    device.power_source = data.power_source
+    device.wifi_rssi_dbm = data.wifi_rssi_dbm
+    device.sensor_status_json = dump_model(data.sensor_status)
+
+
+def update_command_status(data: Telemetry, db: Session) -> None:
+    status = data.command_status
+    if status is None or status.id is None:
+        return
+    command = db.scalar(
+        select(DeviceCommand).where(
+            DeviceCommand.command_id == status.id,
+            DeviceCommand.device_id == data.device_id,
+        )
+    )
+    if command is None:
+        return
+    command.status = status.status
+    command.progress_percent = status.progress_percent
+    command.error_message = status.error
+    if status.status in {"success", "failed"}:
+        command.completed_at = utc_now()
+
+
+def dump_model(value) -> str | None:
+    if value is None:
+        return None
+    return json.dumps(value.model_dump(), ensure_ascii=False, separators=(",", ":"))
+
+
+def load_json(value: str | None):
+    if not value:
+        return None
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return None
 
 
 def apply_time_range(stmt, from_value: str | None, to_value: str | None):
@@ -242,6 +307,9 @@ def record_to_dict(record: PostureRecord) -> dict:
         "session_id": record.session_id,
         "seq": record.seq,
         "timestamp_ms": record.timestamp_ms,
+        "device_name": record.device_name,
+        "occupied": record.occupied,
+        "ratio_valid": record.ratio_valid,
         "posture": record.posture,
         "confidence": record.confidence,
         "pressure": {
@@ -261,6 +329,16 @@ def record_to_dict(record: PostureRecord) -> dict:
             }
             if record.raw_pressure_left is not None else None
         ),
+        "backrest": (
+            {
+                "online": record.backrest_online,
+                "data_ready": record.backrest_data_ready,
+                "valid": record.backrest_valid,
+                "distance_mm": record.backrest_distance_mm,
+                "range_status": record.backrest_range_status,
+            }
+            if record.backrest_online is not None else None
+        ),
         "pressure_features": {
             "total_pressure": record.total_pressure,
             "left_right_diff": record.left_right_diff,
@@ -276,10 +354,23 @@ def record_to_dict(record: PostureRecord) -> dict:
         },
         "posture_duration_s": record.posture_duration_s,
         "sitting_duration_s": record.sitting_duration_s,
+        "applied_config_version": record.applied_config_version,
         "vibration_enabled": record.vibration_enabled,
+        "vibration_effective_enabled": record.vibration_effective_enabled,
         "warning_active": record.warning_active,
+        "reminder_due": record.reminder_due,
+        "reminder_suppressed": record.reminder_suppressed,
+        "vibration_active": record.vibration_active,
+        "vibration_position": record.vibration_position,
         "reminder_count": record.reminder_count,
+        "reminder_cooldown_remaining_s": record.reminder_cooldown_remaining_s,
+        "reminder_config": load_json(record.reminder_config_json),
         "battery_level": record.battery_level,
+        "power_source": record.power_source,
+        "wifi_rssi_dbm": record.wifi_rssi_dbm,
+        "sensor_status": load_json(record.sensor_status_json),
+        "command_status": load_json(record.command_status_json),
+        "device_credential_mode": record.device_credential_mode,
         "recognition_source": record.recognition_source,
         "model_version": record.model_version,
         "firmware_version": record.firmware_version,

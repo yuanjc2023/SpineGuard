@@ -106,7 +106,86 @@ def test_database_tables_created():
         "milestone_claims",
         "daily_task_states",
         "idempotency_records",
+        "device_commands",
     }.issubset(table_names)
+
+
+def test_updated_firmware_registration_config_command_and_telemetry():
+    reset_db()
+    seed_user("USR-HW-ADMIN", "hardware_admin", "admin123", "school_admin")
+    secret = "a" * 64
+    device_id = "SG-A8D738"
+    firmware_example = Path(__file__).resolve().parents[2] / "firmware" / "docs" / "telemetry_v2_example.json"
+    payload = json.loads(firmware_example.read_text(encoding="utf-8"))
+
+    with TestClient(app) as client:
+        device_headers = {"X-Device-ID": device_id, "X-Device-Token": secret}
+        registration = client.post(
+            "/api/v1/device/register",
+            headers=device_headers,
+            json={
+                "device_id": device_id,
+                "device_name": "SpineGuard A8D738",
+                "claim_code": "123456",
+                "firmware_version": payload["firmware_version"],
+                "model_version": payload["model_version"],
+            },
+        )
+        assert registration.status_code == 200
+        assert registration.json()["created"] is True
+
+        admin_login = client.post(
+            "/api/v1/auth/login",
+            json={"username": "hardware_admin", "password": "admin123"},
+        )
+        admin_headers = {"Authorization": f"Bearer {admin_login.json()['access_token']}"}
+        config_update = client.put(
+            f"/api/v1/devices/{device_id}/config",
+            headers=admin_headers,
+            json={
+                "device_name": "我的学习椅",
+                "enabled": True,
+                "mode": "study",
+                "trigger_duration_s": 600,
+                "vibration_duration_s": 10,
+                "cooldown_s": 900,
+                "intensity_percent": 40,
+            },
+        )
+        assert config_update.status_code == 200
+        assert config_update.json()["data"]["config_version"] == 1
+
+        command = client.post(
+            f"/api/v1/devices/{device_id}/commands",
+            headers=admin_headers,
+            json={"type": "calibrate_empty"},
+        )
+        assert command.status_code == 200
+        command_id = command.json()["data"]["id"]
+
+        polled = client.get(f"/api/v1/device/config/{device_id}", headers=device_headers)
+        assert polled.status_code == 200
+        assert polled.json()["data"]["reminder"]["mode"] == "study"
+        assert polled.json()["data"]["command"]["id"] == command_id
+
+        payload["command_status"]["id"] = command_id
+        uploaded = client.post("/api/v1/device/telemetry", headers=device_headers, json=payload)
+        assert uploaded.status_code == 200
+
+        latest = client.get(f"/api/v1/devices/{device_id}/latest").json()["data"]
+        assert latest["recognition_source"] == "lightgbm"
+        assert latest["backrest"]["distance_mm"] == 88
+        assert latest["vibration_active"] is True
+        assert latest["vibration_position"] == "left"
+        assert latest["battery_level"] is None
+        assert latest["sensor_status"]["motor"]["control_ready"] is True
+
+        command_items = client.get(
+            f"/api/v1/devices/{device_id}/commands",
+            headers=admin_headers,
+        ).json()["items"]
+        assert command_items[0]["status"] == "success"
+        assert client.get(f"/api/v1/device/config/{device_id}", headers=device_headers).json()["data"]["command"] is None
 
 
 def test_auth_students_devices_flow():

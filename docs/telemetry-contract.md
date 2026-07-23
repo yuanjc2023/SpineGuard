@@ -34,14 +34,15 @@ Content-Type: application/json
 | `pressure` | object | 是 | 五点归一化压力值，范围 `0~1000`。 |
 | `raw_pressure` | object | 是 | 五个传感器 ADC 原始值，范围 `0~4095`。 |
 | `pressure_features` | object | 是 | 由压力计算出的特征指数。 |
-| `imu` | object | 是 | 姿态辅助数据；没有真实 IMU 时填 `0`。 |
+| `imu` | object | 否 | 兼容旧 IMU 数据；新固件未接入 IMU 时可省略。 |
+| `backrest` | object | 否 | VL53L1X 在线状态、有效性、距离和测距状态。 |
 | `posture_duration_s` | integer | 是 | 当前坐姿连续持续秒数。 |
 | `sitting_duration_s` | integer | 是 | 本次连续就坐秒数。 |
 | `vibration_enabled` | boolean | 是 | 设备是否允许震动提醒。 |
 | `warning_active` | boolean | 是 | 当前是否处于提醒状态。 |
 | `reminder_count` | integer | 是 | 本次会话累计提醒次数。 |
-| `battery_level` | integer | 是 | 电量百分比，范围 `0~100`；无电池原型可填 `100`。 |
-| `recognition_source` | enum | 是 | 识别来源：`mock`、`rule`、`neural_network`。 |
+| `battery_level` | integer/null | 是 | 电量百分比；充电宝供电且无法测量时为 `null`。 |
+| `recognition_source` | enum | 是 | 识别来源：`mock`、`rule`、`lightgbm`、`neural_network`。 |
 | `model_version` | string | 是 | 规则或模型版本。 |
 | `firmware_version` | string | 是 | 固件版本。 |
 
@@ -67,7 +68,16 @@ unknown
 mock
 rule
 neural_network
+lightgbm
 ```
+
+当前硬件模型使用 `recognition_source=lightgbm`，`model_version=spineguard_lightgbm_fsr_tof_v2`。模型以 20 帧窗口提取 38 维压力与靠背距离特征，在 ESP32-S3 本地完成分类。
+
+## 靠背与振动字段
+
+`backrest.distance_mm` 是 VL53L1X 滤波后的靠背距离；仅当 `online=true` 且 `valid=true` 时可用于界面或分析，否则为 `null`。新固件还会上报 `vibration_effective_enabled`、`reminder_due`、`reminder_suppressed`、`vibration_active`、`vibration_position`、`reminder_config`、`sensor_status` 和 `command_status`，用于确认提醒硬件与远程命令的真实状态。
+
+这些扩展字段不要求普通家长页面展示。原始 ADC 和传感器健康信息建议只用于设备调试或管理功能。
 
 ## 压力字段
 

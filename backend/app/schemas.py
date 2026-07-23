@@ -30,7 +30,7 @@ class RawPressure(BaseModel):
 
 
 class PressureFeatures(BaseModel):
-    total_pressure: int = Field(ge=0, le=5000)
+    total_pressure: int = Field(ge=0, le=7500)
     left_right_diff: int = Field(ge=-1000, le=1000)
     front_back_diff: int = Field(ge=-1000, le=1000)
     center_x: float = Field(ge=-1, le=1)
@@ -44,27 +44,132 @@ class Imu(BaseModel):
     shake_level: float = Field(ge=0, le=1)
 
 
+class Backrest(BaseModel):
+    online: bool
+    data_ready: bool
+    valid: bool
+    distance_mm: float | None = Field(default=None, ge=0, le=4000)
+    range_status: int = Field(ge=0, le=255)
+
+
+class ReminderConfig(BaseModel):
+    mode: Literal["normal", "study", "do_not_disturb"]
+    trigger_duration_s: int = Field(ge=5, le=3600)
+    vibration_duration_s: int = Field(ge=1, le=120)
+    cooldown_s: int = Field(ge=30, le=7200)
+    intensity_percent: int = Field(ge=0, le=100)
+
+
+FsrHealth = Literal[
+    "unknown", "ok", "baseline_invalid", "baseline_drift", "stuck_low",
+    "stuck_high", "no_change", "out_of_calibration",
+]
+
+
+class FsrSensorStatus(BaseModel):
+    left: FsrHealth
+    right: FsrHealth
+    front: FsrHealth
+    back: FsrHealth
+    center: FsrHealth
+    all_ok: bool
+    baseline_valid: bool
+
+
+class TofSensorStatus(BaseModel):
+    online: bool
+    valid: bool
+
+
+class MotorSensorStatus(BaseModel):
+    control_ready: bool
+    self_test_completed: bool
+    power_verified: bool
+
+
+class SensorStatus(BaseModel):
+    fsr: FsrSensorStatus
+    tof: TofSensorStatus
+    motor: MotorSensorStatus
+
+
+class CommandStatus(BaseModel):
+    id: str | None = Field(default=None, max_length=64)
+    type: Literal[
+        "none", "calibrate_empty", "restart", "enter_provisioning",
+        "factory_reset", "rotate_claim_code", "ota_update",
+    ]
+    status: Literal["idle", "queued", "running", "success", "failed"]
+    progress_percent: int = Field(ge=0, le=100)
+    error: str | None = Field(default=None, max_length=256)
+
+
 class Telemetry(BaseModel):
     protocol_version: Literal[2] = 2
     device_id: str
     session_id: str
     seq: int = Field(ge=0)
     timestamp_ms: int = Field(ge=0)
+    device_name: str | None = Field(default=None, max_length=64)
+    occupied: bool | None = None
+    ratio_valid: bool | None = None
     posture: Posture
     confidence: float = Field(ge=0, le=1)
     pressure: Pressure
     raw_pressure: RawPressure
     pressure_features: PressureFeatures
-    imu: Imu
+    imu: Imu | None = None
+    backrest: Backrest | None = None
     posture_duration_s: int = Field(ge=0)
     sitting_duration_s: int = Field(ge=0)
+    applied_config_version: int | None = Field(default=None, ge=0)
     vibration_enabled: bool
+    vibration_effective_enabled: bool | None = None
     warning_active: bool
+    reminder_due: bool | None = None
+    reminder_suppressed: bool | None = None
+    vibration_active: bool | None = None
+    vibration_position: Literal["left", "front", "right", "back"] | None = None
     reminder_count: int = Field(ge=0)
-    battery_level: int = Field(ge=0, le=100)
-    recognition_source: Literal["rule", "neural_network", "mock"]
+    reminder_cooldown_remaining_s: int | None = Field(default=None, ge=0)
+    reminder_config: ReminderConfig | None = None
+    battery_level: int | None = Field(default=None, ge=0, le=100)
+    power_source: str | None = Field(default=None, max_length=32)
+    wifi_rssi_dbm: int | None = Field(default=None, ge=-127, le=0)
+    sensor_status: SensorStatus | None = None
+    command_status: CommandStatus | None = None
+    device_credential_mode: Literal["global_token", "per_device_secret"] | None = None
+    recognition_source: Literal["rule", "lightgbm", "neural_network", "mock"]
     model_version: str
     firmware_version: str
+
+
+class DeviceRegistrationRequest(BaseModel):
+    device_id: str = Field(min_length=1, max_length=64)
+    device_name: str = Field(min_length=1, max_length=64)
+    claim_code: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
+    firmware_version: str = Field(default="", max_length=64)
+    model_version: str = Field(default="", max_length=64)
+
+
+class ReminderConfigUpdate(BaseModel):
+    device_name: str | None = Field(default=None, min_length=1, max_length=64)
+    enabled: bool | None = None
+    mode: Literal["normal", "study", "do_not_disturb"] | None = None
+    trigger_duration_s: int | None = Field(default=None, ge=5, le=3600)
+    vibration_duration_s: int | None = Field(default=None, ge=1, le=120)
+    cooldown_s: int | None = Field(default=None, ge=30, le=7200)
+    intensity_percent: int | None = Field(default=None, ge=1, le=100)
+
+
+class DeviceCommandCreate(BaseModel):
+    type: Literal[
+        "calibrate_empty", "restart", "enter_provisioning", "factory_reset",
+        "rotate_claim_code", "ota_update",
+    ]
+    firmware_url: str | None = Field(default=None, max_length=320)
+    firmware_sha256: str | None = Field(default=None, max_length=64, pattern=r"^[0-9a-fA-F]{64}$")
+    target_version: str | None = Field(default=None, max_length=48)
 
 
 class RegisterRequest(BaseModel):
@@ -112,11 +217,17 @@ class DeviceCreate(BaseModel):
 
 class DeviceOut(BaseModel):
     device_id: str
+    device_name: str = "SpineGuard"
     firmware_version: str
     model_version: str
     battery_level: int | None
     online_status: str
     last_seen_at: str | None
+    config_version: int = 0
+    applied_config_version: int | None = None
+    power_source: str | None = None
+    wifi_rssi_dbm: int | None = None
+    sensor_status: dict | None = None
 
 
 class DeviceBindRequest(BaseModel):

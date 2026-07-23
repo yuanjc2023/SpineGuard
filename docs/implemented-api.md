@@ -364,6 +364,14 @@ AUTO_REPORT_CATCH_UP_DAYS=7
 
 ## 设备上传接口
 
+### `POST /api/v1/device/register`
+
+新固件每 60 秒幂等登记设备。请求携带 `X-Device-ID` 和该设备独立的 `X-Device-Token`，后端保存设备密钥哈希、六位绑定码哈希、设备名称、固件版本和 LightGBM 模型版本。密钥和绑定码不以明文保存。
+
+### `GET /api/v1/device/config/{device_id}`
+
+设备每 5 秒轮询提醒配置和待执行命令。使用逐设备密钥鉴权，返回配置版本、设备名称、提醒模式、触发时间、振动时间、冷却、强度和一个待执行命令。
+
 ### `POST /api/v1/device/telemetry`
 
 设备上传遥测数据。认证方式：
@@ -380,6 +388,19 @@ docs/telemetry-contract.md
 ```
 
 当前遥测协议为 V2：`pressure` 是 0~1000 的五点归一化压力，`raw_pressure` 是同次采样的 0~4095 五点 ADC 原始值。设备上传时两组字段均为必填。查询旧历史记录时，由于旧数据未保存原始值，响应中的 `raw_pressure` 为 `null`。
+
+更新后的固件还会上报 VL53L1X 靠背距离、`lightgbm` 识别来源、真实振动状态、提醒配置、Wi-Fi 信号、传感器健康和命令回执。后端会保存这些字段；普通前端可以忽略它们。`battery_level` 允许为 `null`，不能显示成 0%。
+
+### 用户侧设备配置与管理员命令
+
+```text
+GET  /api/v1/devices/{device_id}/config
+PUT  /api/v1/devices/{device_id}/config
+GET  /api/v1/devices/{device_id}/commands
+POST /api/v1/devices/{device_id}/commands
+```
+
+家长可修改自己孩子所绑定设备的名称与提醒参数。`school_admin/admin` 可下发 `calibrate_empty`、`restart`、`enter_provisioning`、`factory_reset`、`rotate_claim_code` 和 `ota_update` 命令。设备通过配置轮询取得命令，并在 Telemetry 的 `command_status` 中回传进度和终态。
 
 当前处理逻辑：
 

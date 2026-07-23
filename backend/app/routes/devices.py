@@ -6,7 +6,8 @@ from ..config import API_PREFIX
 from ..db import get_db
 from ..models import Device, DeviceBinding, Student, User, UserStudentLink, utc_now
 from ..schemas import DeviceBindRequest, DeviceBindingOut, DeviceCreate, DeviceOut
-from ..services.auth import get_current_user, hash_secret, require_roles
+from ..services.auth import get_current_user, hash_secret, require_roles, verify_secret
+from ..services.device_management import sensor_status
 
 router = APIRouter(prefix=f"{API_PREFIX}/devices", tags=["devices"])
 
@@ -47,6 +48,7 @@ def create_device(
     device = Device(
         device_id=data.device_id,
         device_token_hash=hash_secret(data.device_token),
+        device_name=data.device_id,
         firmware_version=data.firmware_version,
         model_version=data.model_version,
         online_status="unknown",
@@ -66,6 +68,10 @@ def device_status(
     device = db.scalar(select(Device).where(Device.device_id == device_id))
     if device is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
+    if device.claim_code_hash and (
+        data.bind_code is None or not verify_secret(data.bind_code, device.claim_code_hash)
+    ):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid bind code")
     return {"ok": True, "data": device_out(device).model_dump()}
 
 
@@ -146,11 +152,17 @@ def bind_device(
 def device_out(device: Device) -> DeviceOut:
     return DeviceOut(
         device_id=device.device_id,
+        device_name=device.device_name,
         firmware_version=device.firmware_version,
         model_version=device.model_version,
         battery_level=device.battery_level,
         online_status=device.online_status,
         last_seen_at=device.last_seen_at.isoformat() if device.last_seen_at else None,
+        config_version=device.config_version,
+        applied_config_version=device.applied_config_version,
+        power_source=device.power_source,
+        wifi_rssi_dbm=device.wifi_rssi_dbm,
+        sensor_status=sensor_status(device),
     )
 
 

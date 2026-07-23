@@ -14,7 +14,6 @@
     "pressure",
     "raw_pressure",
     "pressure_features",
-    "imu",
     "posture_duration_s",
     "sitting_duration_s",
     "vibration_enabled",
@@ -97,6 +96,9 @@
         }
       }
     },
+    "device_name": {"type": "string", "maxLength": 64},
+    "occupied": {"type": "boolean"},
+    "ratio_valid": {"type": "boolean"},
     "raw_pressure": {
       "type": "object",
       "required": [
@@ -150,7 +152,7 @@
         "total_pressure": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 5000
+          "maximum": 7500
         },
         "left_right_diff": {
           "type": "integer",
@@ -205,6 +207,18 @@
         }
       }
     },
+    "backrest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["online", "data_ready", "valid", "distance_mm", "range_status"],
+      "properties": {
+        "online": {"type": "boolean"},
+        "data_ready": {"type": "boolean"},
+        "valid": {"type": "boolean"},
+        "distance_mm": {"type": ["number", "null"], "minimum": 0, "maximum": 4000},
+        "range_status": {"type": "integer", "minimum": 0, "maximum": 255}
+      }
+    },
     "posture_duration_s": {
       "type": "integer",
       "minimum": 0
@@ -216,21 +230,46 @@
     "vibration_enabled": {
       "type": "boolean"
     },
+    "applied_config_version": {"type": "integer", "minimum": 0},
+    "vibration_effective_enabled": {"type": "boolean"},
     "warning_active": {
       "type": "boolean"
     },
+    "reminder_due": {"type": "boolean"},
+    "reminder_suppressed": {"type": "boolean"},
+    "vibration_active": {"type": "boolean"},
+    "vibration_position": {"enum": ["left", "front", "right", "back", null]},
     "reminder_count": {
       "type": "integer",
       "minimum": 0
     },
+    "reminder_cooldown_remaining_s": {"type": "integer", "minimum": 0},
+    "reminder_config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "trigger_duration_s", "vibration_duration_s", "cooldown_s", "intensity_percent"],
+      "properties": {
+        "mode": {"enum": ["normal", "study", "do_not_disturb"]},
+        "trigger_duration_s": {"type": "integer", "minimum": 5, "maximum": 3600},
+        "vibration_duration_s": {"type": "integer", "minimum": 1, "maximum": 120},
+        "cooldown_s": {"type": "integer", "minimum": 30, "maximum": 7200},
+        "intensity_percent": {"type": "integer", "minimum": 0, "maximum": 100}
+      }
+    },
     "battery_level": {
-      "type": "integer",
+      "type": ["integer", "null"],
       "minimum": 0,
       "maximum": 100
     },
+    "power_source": {"type": "string"},
+    "wifi_rssi_dbm": {"type": ["integer", "null"], "minimum": -127, "maximum": 0},
+    "sensor_status": {"type": "object"},
+    "command_status": {"type": "object"},
+    "device_credential_mode": {"enum": ["global_token", "per_device_secret"]},
     "recognition_source": {
       "enum": [
         "rule",
+        "lightgbm",
         "neural_network",
         "mock"
       ]

@@ -5,6 +5,9 @@
 ## 当前能力
 
 - 接收 ESP32-S3 或模拟设备上传的遥测数据。
+- 支持更新后固件的设备幂等登记、逐设备密钥鉴权和六位绑定码。
+- 保存 VL53L1X 靠背距离、LightGBM 识别来源、真实振动状态和传感器健康信息。
+- 提供设备提醒配置、配置版本确认和远程命令闭环。
 - 使用 Pydantic 校验设备上传字段。
 - 使用设备 Token 保护设备上传接口。
 - 将设备上传数据写入 `posture_records`。
@@ -140,6 +143,7 @@ scheduled_report_runs
 reminder_events
 notifications
 telemetry_receipts
+device_commands
 device_session_states
 abnormal_episodes
 growth_settlement_segments
@@ -166,6 +170,7 @@ idempotency_records
 - `reminder_events`：提醒事件。
 - `notifications`：小程序通知。
 - `telemetry_receipts`：遥测业务唯一回执，用于阻止重复结算。
+- `device_commands`：校准、重启、配网、恢复出厂、绑定码轮换和 OTA 命令及执行状态。
 - `device_session_states`、`abnormal_episodes`：设备会话和异常片段状态机。
 - `game_daily_progress`、`growth_settlement_segments`：自然日进度和 20:00 成长结算段。
 - `garden_accounts`、`reward_ledger`：成长、资源账户和只追加流水。

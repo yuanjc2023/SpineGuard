@@ -22,6 +22,12 @@ def pressure_features(vals):
       "asymmetry_index":max(0,min(1,asym))
     }
 
+def raw_pressure(vals):
+    return {
+      name:max(0,min(4095,round(4095-value*4.095)))
+      for name,value in zip(["left","right","front","back","center"],vals)
+    }
+
 for posture in itertools.cycle(profiles):
     start=time.time()
     for _ in range(10):
@@ -31,9 +37,10 @@ for posture in itertools.cycle(profiles):
         if warning:
             reminder_count+=1
         data={
-          "protocol_version":1,"device_id":"SG-0001","session_id":"S-MOCK-001","seq":seq,
+          "protocol_version":2,"device_id":"SG-0001","session_id":"S-MOCK-001","seq":seq,
           "timestamp_ms":int(time.time()*1000),"posture":posture,"confidence":round(random.uniform(.88,.99),2),
           "pressure":dict(zip(["left","right","front","back","center"],vals)),
+          "raw_pressure":raw_pressure(vals),
           "pressure_features":pressure_features(vals),
           "imu":{"tilt_x":round(random.uniform(-3,3),2),"tilt_y":round(random.uniform(-3,3),2),"shake_level":round(random.uniform(0,0.08),2)},
           "posture_duration_s":int(time.time()-start),"sitting_duration_s":0 if posture=="empty" else seq,

@@ -7,12 +7,6 @@
     </view>
   </view>
   <view class="card">
-    <text>原始压力（ADC）</text>
-    <view wx:for="{{['left','right','front','back','center']}}" wx:key="*this" class="row">
-      <text>{{item}}</text><text>{{rawPressure[item] === null ? '--' : rawPressure[item]}}</text>
-    </view>
-  </view>
-  <view class="card">
     <text>压力指数</text>
     <view class="row"><text>总压力</text><text>{{pressureFeatures.total_pressure}}</text></view>
     <view class="row"><text>左右差</text><text>{{pressureFeatures.left_right_diff}}</text></view>
@@ -21,7 +15,7 @@
   </view>
   <view class="card">
     <view class="row"><text>提醒次数</text><text>{{reminderCount}}</text></view>
-    <view class="row"><text>电量</text><text>{{batteryLevel}}%</text></view>
+    <view class="row"><text>电量</text><text>{{batteryLevel === null ? '--' : batteryLevel + '%'}}</text></view>
   </view>
   <view class="card">连接状态：{{connected?"正常":"断开"}}</view>
 </view>

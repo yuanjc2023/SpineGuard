@@ -2,11 +2,12 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, WebSocket,
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..config import API_PREFIX, DEVICE_TOKEN
+from ..config import API_PREFIX
 from ..db import SessionLocal, get_db
 from ..models import User, UserStudentLink
 from ..schemas import Telemetry
 from ..services.auth import decode_access_token
+from ..services.device_management import authenticate_device
 from ..services.game_realtime import broadcast_game_events
 from ..services.telemetry import (
     get_device_history,
@@ -25,11 +26,13 @@ router = APIRouter(prefix=API_PREFIX)
 @router.post("/device/telemetry")
 async def receive(
     data: Telemetry,
+    x_device_id: str = Header(default=""),
     x_device_token: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
-    if x_device_token != DEVICE_TOKEN:
-        raise HTTPException(status_code=401, detail="Invalid device token")
+    if x_device_id and x_device_id != data.device_id:
+        raise HTTPException(status_code=401, detail="Device ID mismatch")
+    authenticate_device(data.device_id, x_device_token, db)
 
     result = await save_telemetry(data, db)
     if result["student_id"]:
